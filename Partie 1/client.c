@@ -5,13 +5,21 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <pthread.h>
+
+#define MAX_USERNAME_LEN 50
+#define MAX_MSG_LEN 512
 
 struct msgBuffer {
-    char username[32];
-    int opCode;
-    char msg[256];
+    char username[MAX_USERNAME_LEN];
+    int opCode; 
+    char msg[MAX_MSG_LEN];
     int msgSize;
+    int port;
+    struct sockaddr_in adClient;
 };
+
+
 
 int main(int argc, char *argv[]) {
     printf("🟢 Démarrage du client UDP\n");
@@ -31,38 +39,42 @@ int main(int argc, char *argv[]) {
 
     struct sockaddr_in aD;
     aD.sin_family = AF_INET;
-    aD.sin_port = htons(atoi(argv[2]));
-    if (inet_pton(AF_INET, argv[1], &aD.sin_addr) <= 0) {
-        perror("❌ Erreur inet_pton");
-        close(dS);
+    aD.sin_addr.s_addr = inet_addr(argv[1]);
+    aD.sin_port = htons((short)atoi(argv[2]));
+
+    // Liaison de la socket
+    if (bind(dS, (struct sockaddr*)&aD, sizeof(aD)) < 0) {
+        perror("❌ Erreur bind");
         exit(EXIT_FAILURE);
     }
-    socklen_t lgA = sizeof(struct sockaddr_in);
-    printf("📡 Adresse IP et port configurés\n");
+
+    //adresse du serveur
+    struct sockaddr_in aS;
+    aS.sin_family = AF_INET;
+    aS.sin_port = htons((short)12345);
+    aS.sin_addr.s_addr = INADDR_ANY;
+
 
     struct msgBuffer m;
-    strncpy(m.username, "Alice", sizeof(m.username));
+
+    printf("Entrez votre nom d'utilisateur : ");
+    scanf("%s", m.username);
     m.opCode = 1;
-    strncpy(m.msg, "Bonjour serveur UDP", sizeof(m.msg));
-    m.msgSize = strlen(m.msg);
+    m.port = aD.sin_port;
+    m.msgSize = strlen(m.msg) + 1;
+    m.adClient = aD;
 
-    printf("📤 Envoi du message au serveur...\n");
-    if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aD, lgA) == -1) {
-        perror("❌ Erreur sendto");
-        close(dS);
-        exit(EXIT_FAILURE);
+    while(1) {
+        printf("Entrez un message à envoyer : ");
+        scanf("%s", m.msg);
+
+        if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
+            perror("❌ Erreur sendto");
+            close(dS);
+        }
+        printf("📤 Message envoyé au serveur : %s\n", m.msg);
     }
-    printf("✅ Message envoyé. En attente de réponse...\n");
-
-    int r;
-    if (recvfrom(dS, &r, sizeof(int), 0, NULL, NULL) == -1) {
-        perror("❌ Erreur recvfrom");
-        close(dS);
-        exit(EXIT_FAILURE);
-    }
-
-    printf("📥 Réponse reçue du serveur : %d\n", r);
-
+    
     close(dS);
     printf("🔒 Socket fermée. Fin du client.\n");
     return 0;
