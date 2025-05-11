@@ -31,7 +31,8 @@ int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int s
     
     while (current != NULL) {
         // Ne pas envoyer au client qui a émis le message
-        if (strcmp(current->data.username, msg->username) != 0) { 
+        if (!(current->data.adClient.sin_addr.s_addr == msg->adClient.sin_addr.s_addr &&
+            current->data.adClient.sin_port == msg->adClient.sin_port)) { 
             socklen_t addrLen = sizeof(struct sockaddr_in);
             int result = sendto(serverSocket, msg, sizeof(struct msgBuffer), 0, 
                                (struct sockaddr*)&current->data.adClient, addrLen);
@@ -65,11 +66,10 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     printf("Message reçu : %s\n", msg->msg); 
 
     struct client c;
-    c.adClient = msg->adClient;
+    c.adClient = adrExp;
     c.port = msg->port;
     c.dSClient = dS;
     strcpy(c.username, msg->username); 
-    c.adClient.sin_port = htons(msg->port); 
     
     if (!clientAlreadyExists(clientList, c)) { 
         clientList = addClient(clientList, c); 
