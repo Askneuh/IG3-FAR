@@ -24,6 +24,12 @@ struct msgBuffer {
     struct sockaddr_in adClient;
 };
 
+struct fileBuffer {
+    char filename[MAX_MSG_LEN];
+    int fileSize;
+    char fileData[MAX_MSG_LEN];
+};
+
 int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket) {
     ClientNode* current = clientList;
     int successCount = 0;
@@ -53,7 +59,7 @@ int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int s
 }
 
 
-ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList) {
+ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, struct sockaddr_in adServeur) {
 
     struct sockaddr_in adrExp;
     socklen_t adrExpLen = sizeof(adrExp);
@@ -77,6 +83,138 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     }
     if (msg->opCode == 1) {  
         sendMessageToAllClients(clientList, msg, dS); 
+    }
+    else if (msg->opCode == 2) { 
+    printf("🔄 Demande de transfert de fichier reçue de %s\n", msg->username);
+    
+    // Création d'une socket TCP
+    int dSTCP = socket(AF_INET, SOCK_STREAM, 0);
+    if (dSTCP == -1) {
+        perror("❌ Erreur création socket TCP");
+        // On envoie un message d'erreur au client
+        strcpy(msg->msg, "Erreur serveur: impossible de créer une socket TCP");
+        sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+        return clientList;
+    }
+    
+    // Configuration de l'adresse de la socket TCP
+    struct sockaddr_in adServTCP;
+    adServTCP.sin_family = AF_INET;
+    adServTCP.sin_addr.s_addr = adServeur.sin_addr.s_addr;
+    adServTCP.sin_port = htons(12346); // On utilise un port différent pour TCP
+    
+    // Options pour réutiliser l'adresse et le port
+    int opt = 1;
+    if (setsockopt(dSTCP, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("❌ Erreur setsockopt");
+        close(dSTCP);
+        return clientList;
+    }
+    
+    // Bind de la socket TCP
+    if (bind(dSTCP, (struct sockaddr*)&adServTCP, sizeof(adServTCP)) == -1) {
+        perror("❌ Erreur bind socket TCP");
+        close(dSTCP);
+        // On envoie un message d'erreur au client
+        strcpy(msg->msg, "Erreur serveur: impossible de bind la socket TCP");
+        sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+        return clientList;
+    }
+    
+    // Mise en écoute de la socket TCP
+    if (listen(dSTCP, 5) == -1) {
+        perror("❌ Erreur listen socket TCP");
+        close(dSTCP);
+        return clientList;
+    }
+    
+    // Préparation de la réponse au client avec les informations de connexion TCP
+    msg->port = htons(12346); // Port TCP du serveur
+    sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+    printf("📤 Informations de connexion TCP envoyées au client\n");
+    
+    printf("⏳ En attente de connexion TCP du client...\n");
+    // Acceptation de la connexion TCP du client
+    struct sockaddr_in addrClient;
+    socklen_t addrClientLen = sizeof(addrClient);
+    int newSocket = accept(dSTCP, (struct sockaddr*)&addrClient, &addrClientLen);
+    
+    if (newSocket == -1) {
+        perror("❌ Erreur accept");
+        close(dSTCP);
+        return clientList;
+    }
+    printf("🔗 Client connecté sur la socket TCP\n");
+    
+    // Réception du fichier
+    struct fileBuffer fileData;
+    int totalReceived = 0;
+    char outputPath[MAX_MSG_LEN + 15]; // Pour stocker le chemin du fichier reçu
+    FILE* file = NULL;
+    bool continueReceiving = true;
+    while (continueReceiving) {
+        // Réception des données
+        ssize_t bytesReceived = recv(newSocket, &fileData, sizeof(fileData), 0);
+        
+        if (bytesReceived <= 0) {
+            if (bytesReceived == 0) {
+                printf("🔌 Connexion fermée par le client\n");
+            } else {
+                perror("❌ Erreur recv");
+                continueReceiving = false;
+            }
+        }
+        
+        // Si c'est le premier paquet ou si le fichier n'est pas encore ouvert
+        if (file == NULL) {
+            // Création du nom de fichier unique avec préfixe "received_"
+            snprintf(outputPath, sizeof(outputPath), "received_%s", fileData.filename);
+            
+            // Ouverture du fichier en écriture
+            file = fopen(outputPath, "wb");
+            if (!file) {
+                perror("❌ Erreur ouverture fichier");
+                close(newSocket);
+                close(dSTCP);
+                return clientList;
+            }
+            printf("📂 Fichier '%s' créé pour la réception\n", outputPath);
+        }
+        
+        // Vérifier si c'est le dernier paquet (taille = 0)
+        if (fileData.fileSize == 0) {
+            printf("✅ Transfert terminé\n");
+            continueReceiving = false; // On arrête la réception
+        }
+        
+        // Écriture des données dans le fichier
+        size_t writtenBytes = fwrite(fileData.fileData, 1, fileData.fileSize, file);
+        if (writtenBytes != fileData.fileSize) {
+            perror("❌ Erreur écriture fichier");
+            continueReceiving = false; // On arrête la réception
+        }
+        
+        totalReceived += fileData.fileSize;
+        printf("📥 Réception en cours: %d octets reçus\n", totalReceived);
+    }
+    
+    // Fermeture du fichier si ouvert
+    if (file) {
+        fclose(file);
+        printf("📄 Fichier '%s' reçu avec succès (%d octets)\n", outputPath, totalReceived);
+        
+        // Notification aux autres clients qu'un fichier a été reçu
+        sprintf(msg->msg, "Le fichier '%s' a été envoyé par %s", fileData.filename, msg->username);
+        msg->opCode = 1; // On utilise l'opCode standard pour envoyer un message
+        sendMessageToAllClients(clientList, msg, dS);
+    }
+    
+    // Fermeture des sockets
+    close(newSocket);
+    close(dSTCP);
+    } 
+    else {
+        printf("OpCode inconnu: %d\n", msg->opCode);
     }
     return clientList; 
 }
@@ -102,12 +240,16 @@ int main(int argc, char* argv[]) {
 
 
     struct msgBuffer* msg = malloc(sizeof(struct msgBuffer)); 
-    
-    while(1) {
+    bool continueReceiving = true;
+    while(continueReceiving) {
         printf("En attente de message...\n");
-        clientList = ReceiveMessage(dS, msg, clientList); 
-        printf("Liste des clients :\n");
+        clientList = ReceiveMessage(dS, msg, clientList, adServeur); 
+        printf("Liste des clients:\n");
         printClients(clientList);
+        if (strcmp(msg->msg, "quit") == 0) {
+            printf("Arrêt du serveur demandé.\n");
+            continueReceiving = false;
+        }
     }
 
     free(msg);
