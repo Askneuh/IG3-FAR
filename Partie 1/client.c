@@ -107,12 +107,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
         // Attente de la réponse du serveur contenant les infos de la socket TCP
         struct sockaddr_in from;
         socklen_t fromLen = sizeof(from);
-        if (recvfrom(dS, &m, sizeof(m), 0, (struct sockaddr*)&from, &fromLen) == -1) {
-            perror("❌ Erreur de réception de la réponse du serveur");
-            fclose(file);
-        }
-
-        printf("📩 Réponse du serveur reçue, connexion TCP autorisée sur le port %d\n", ntohs(m.port));
         
         // Création de la socket TCP du client
         int dSTCP = socket(PF_INET, SOCK_STREAM, 0);
@@ -125,7 +119,8 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
         struct sockaddr_in serverTCP;
         serverTCP.sin_family = AF_INET;
         serverTCP.sin_addr.s_addr = aS.sin_addr.s_addr;
-        serverTCP.sin_port = m.port; // Le port TCP est maintenant celui reçu dans la réponse
+        serverTCP.sin_port = htons(12346); // Port TCP du serveur
+        printf("🔌 Adresse du serveur TCP : %s:%d\n", inet_ntoa(serverTCP.sin_addr), ntohs(serverTCP.sin_port));
         
         // Connexion à la socket TCP du serveur
         if (connect(dSTCP, (struct sockaddr*)&serverTCP, sizeof(serverTCP)) == -1) {
@@ -135,7 +130,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
         }
         printf("🔗 Connexion à la socket TCP établie\n");
         
-        // Préparation et envoi des données du fichier
         struct fileBuffer f;
         strncpy(f.filename, filename, MAX_MSG_LEN - 1);
         f.filename[MAX_MSG_LEN - 1] = '\0'; // Garantir la terminaison de la chaîne
@@ -161,7 +155,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
         f.fileSize = 0;
         send(dSTCP, &f, sizeof(f.filename) + sizeof(f.fileSize), 0);
         
-        // Fermeture propre des ressources
         close(dSTCP);
         fclose(file);
         printf("✅ Fichier '%s' envoyé avec succès (%d octets)\n", filename, totalSent);

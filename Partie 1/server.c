@@ -98,10 +98,10 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     }
     
     // Configuration de l'adresse de la socket TCP
-    struct sockaddr_in adServTCP;
-    adServTCP.sin_family = AF_INET;
-    adServTCP.sin_addr.s_addr = adServeur.sin_addr.s_addr;
-    adServTCP.sin_port = htons(12346); // On utilise un port différent pour TCP
+    struct sockaddr_in serverTCP;
+        serverTCP.sin_family = AF_INET;
+        serverTCP.sin_addr.s_addr = adServeur.sin_addr.s_addr;
+        serverTCP.sin_port = htons(12346); // Port TCP du serveur
     
     // Options pour réutiliser l'adresse et le port
     int opt = 1;
@@ -112,7 +112,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     }
     
     // Bind de la socket TCP
-    if (bind(dSTCP, (struct sockaddr*)&adServTCP, sizeof(adServTCP)) == -1) {
+    if (bind(dSTCP, (struct sockaddr*)&serverTCP, sizeof(serverTCP)) == -1) {
         perror("❌ Erreur bind socket TCP");
         close(dSTCP);
         // On envoie un message d'erreur au client
@@ -124,6 +124,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     // Mise en écoute de la socket TCP
     if (listen(dSTCP, 5) == -1) {
         perror("❌ Erreur listen socket TCP");
+        printf("DEBUG: dSTCP=%d, errno=%d (%s)\n", dSTCP, errno, strerror(errno));
         close(dSTCP);
         return clientList;
     }
@@ -159,10 +160,12 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         if (bytesReceived <= 0) {
             if (bytesReceived == 0) {
                 printf("🔌 Connexion fermée par le client\n");
+                continueReceiving = false; // On arrête la réception
             } else {
                 perror("❌ Erreur recv");
-                continueReceiving = false;
+                continueReceiving = false; // On arrête la réception
             }
+            
         }
         
         // Si c'est le premier paquet ou si le fichier n'est pas encore ouvert
@@ -179,6 +182,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
                 return clientList;
             }
             printf("📂 Fichier '%s' créé pour la réception\n", outputPath);
+            printf("Contenu du fichier : %s\n", fileData.fileData);
         }
         
         // Vérifier si c'est le dernier paquet (taille = 0)
