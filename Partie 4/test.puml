@@ -1,0 +1,33 @@
+@startuml
+participant ClientLambda
+participant AutresClients
+participant Serveur
+
+Serveur -> Serveur: Lancement du serveur (écoute sur un port)
+
+loop Tant que le serveur est en fonctionnement
+    alt Connexion d’un client lambda
+        ClientLambda -> ClientLambda: Ouverture socket client et initialisation
+        ClientLambda -> Serveur: Demande de connexion
+        Serveur -> ClientLambda: Confirmation de la connexion
+        
+        ClientLambda -> ClientLambda: Création des threads Envoi & Réception
+        Serveur -> Serveur: Ajout de la socket au tableau
+        Serveur -> Serveur: Création d’un thread de gestion pour ce client
+
+    else Envoi d’un message par le client lambda
+        ClientLambda -> Serveur: Envoi d’un message via le thread d’envoi
+        Serveur -> AutresClients: Diffusion du message à tous les autres clients
+
+    else Déconnexion du client lambda
+        ClientLambda -> Serveur: Demande de déconnexion
+        Serveur -> ClientLambda: Confirmation de la déconnexion
+
+        ClientLambda -> ClientLambda: Fermeture des threads et socket client
+        Serveur -> Serveur: Suppression de la socket du tableau
+
+    end
+end
+
+Serveur -> Serveur: Fermeture du serveur (CTRL+C, signal)
+@enduml
