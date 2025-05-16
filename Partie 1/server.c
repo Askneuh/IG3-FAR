@@ -9,9 +9,14 @@
 #include <string.h>
 #include <errno.h>
 #include "client_list.h"
+#include <pthread.h>
 
 #define MAX_USERNAME_LEN 50
 #define MAX_MSG_LEN 512
+
+pthread_mutex_t client_list_mutex;
+pthread_mutex_t udp_socket_mutex;
+pthread_mutex_t file_mutex;
 
 //Choix effectués : échange UDP pour les messages et TCP pour  l'echange de fichiers.
 
@@ -24,13 +29,10 @@ struct msgBuffer {
     struct sockaddr_in adClient; // Adresse de l'envoyeur
 };
 
-struct fileBuffer {
-    char filename[MAX_MSG_LEN];
-    int fileSize;
-    char fileData[MAX_MSG_LEN];
-};
+
 
 int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket) {
+    pthread_mutex_lock(&client_list_mutex);
     ClientNode* current = clientList;
     int successCount = 0;
     int errorCount = 0;
@@ -53,6 +55,7 @@ int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int s
         }
         current = current->next;
     }
+    pthread_mutex_unlock(&client_list_mutex);
     
     printf("Message diffusé à %d clients (%d erreurs)\n", successCount, errorCount);
     return successCount;
@@ -62,14 +65,14 @@ int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int s
 ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, struct sockaddr_in adServeur) {
     struct sockaddr_in adrExp;
     socklen_t adrExpLen = sizeof(adrExp);
-
+    pthread_mutex_lock(&udp_socket_mutex);
 
     if (recvfrom(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, &adrExpLen) == -1) { 
         perror("recvfrom");
         close(dS);
         exit(EXIT_FAILURE);
     }
-
+    pthread_mutex_unlock(&udp_socket_mutex);
 
     struct client c;
     c.adClient = adrExp;
@@ -77,10 +80,17 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     c.dSClient = dS;
     strcpy(c.username, msg->username); 
     
+
+    pthread_mutex_lock(&client_list_mutex);
+
     if (!clientAlreadyExists(clientList, c)) { 
         clientList = addClient(clientList, c); 
         printf("Nouveau client ajouté: %s\n", c.username);
     }
+
+    pthread_mutex_unlock(&client_list_mutex);
+
+
     if (msg->opCode == 1) {  
         sendMessageToAllClients(clientList, msg, dS); 
     }
@@ -89,6 +99,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     else if (msg->opCode == 2) { 
         printf("Demande de transfert de fichier reçue de %s\n", msg->username);
         
+        pthread_mutex_lock(&file_mutex);
         
         FILE* receivedFile = fopen(msg->msg, "wb");
 
@@ -97,9 +108,13 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         // Création de socket TCP du serveur
         int dSTCP = socket(AF_INET, SOCK_STREAM, 0);
         if (dSTCP == -1) {
+            pthread_mutex_lock(&udp_socket_mutex);
             perror("Erreur création socket TCP");
             strcpy(msg->msg, "Erreur serveur: impossible de créer une socket TCP");
+            pthread_mutex_lock(&udp_socket_mutex);
             sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+            pthread_mutex_unlock(&udp_socket_mutex);
+            pthread_mutex_unlock(&file_mutex);
             return clientList;
         }
         printf("Socket TCP serv créée\n");
@@ -111,7 +126,10 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
             perror("Erreur bind socket TCP");
             close(dSTCP);
             strcpy(msg->msg, "Erreur serveur: impossible de bind la socket TCP");
+            pthread_mutex_lock(&udp_socket_mutex);
             sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+            pthread_mutex_unlock(&udp_socket_mutex);
+            pthread_mutex_unlock(&file_mutex);
             return clientList;
         }
 
@@ -121,6 +139,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         if (listen(dSTCP, 5) == -1) {
             perror("Erreur listen socket TCP");
             close(dSTCP);
+            pthread_mutex_unlock(&file_mutex);
             return clientList;
         }
             
@@ -132,6 +151,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         if (clientSocketTCP == -1) {
             perror("❌ Erreur accept");
             close(dSTCP);
+            pthread_mutex_unlock(&file_mutex);
             return clientList;
         }
         char buffer[MAX_MSG_LEN];
@@ -151,6 +171,8 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         else {
             printf("Fichier reçu avec succès.\n");
         }
+
+        pthread_mutex_unlock(&file_mutex);
        
         
         close(clientSocketTCP);
@@ -158,7 +180,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     } 
     else if (msg->opCode == 6) { 
         printf("Demande de download de fichier reçue de %s\n", msg->username);
-        
+        pthread_mutex_lock(&file_mutex);
         bool fileExists = true;
         char* filename[MAX_MSG_LEN];
         strcpy(filename, msg->msg);
@@ -176,7 +198,10 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
             if (dSTCP == -1) {
                 perror("Erreur création socket TCP");
                 strcpy(msg->msg, "Erreur serveur: impossible de créer une socket TCP");
+                pthread_mutex_lock(&udp_socket_mutex);
                 sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+                pthread_mutex_unlock(&udp_socket_mutex);
+                pthread_mutex_unlock(&file_mutex);
                 return clientList;
             }
             
@@ -188,7 +213,10 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
                 perror("Erreur bind socket TCP");
                 close(dSTCP);
                 strcpy(msg->msg, "Erreur serveur: impossible de bind la socket TCP");
+                pthread_mutex_lock(&udp_socket_mutex);
                 sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+                pthread_mutex_unlock(&udp_socket_mutex);
+                pthread_mutex_unlock(&file_mutex);
                 return clientList;
             }
 
@@ -198,6 +226,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
             if (listen(dSTCP, 5) == -1) {
                 perror("Erreur listen socket TCP");
                 close(dSTCP);
+                pthread_mutex_unlock(&file_mutex);
                 return clientList;
             }
                 
@@ -209,6 +238,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
             if (clientSocketTCP == -1) {
                 perror("❌ Erreur accept");
                 close(dSTCP);
+                pthread_mutex_unlock(&file_mutex);
                 return clientList;
             }
             
@@ -234,6 +264,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
             else {
                 printf("Fichier envoyé avec succès.\n");
             }
+            pthread_mutex_unlock(&file_mutex);
         }
         return clientList;
     } 
@@ -268,15 +299,19 @@ int main(int argc, char* argv[]) {
     while(continueReceiving) {
         printf("En attente de message...\n");
         clientList = ReceiveMessage(dS, msg, clientList, adServeur); 
+        pthread_mutex_lock(&client_list_mutex);
         printf("Liste des clients:\n");
         printClients(clientList);
+        pthread_mutex_unlock(&client_list_mutex);
         printf("\n");
         if (strcmp(msg->msg, "quit") == 0) {
             printf("Arrêt du serveur demandé.\n");
             continueReceiving = false;
         }
     }
-
+    pthread_mutex_destroy(&client_list_mutex);
+    pthread_mutex_destroy(&udp_socket_mutex);
+    pthread_mutex_destroy(&file_mutex);
     free(msg);
     freeClients(clientList);
     close(dS);

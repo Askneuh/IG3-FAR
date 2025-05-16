@@ -11,6 +11,9 @@
 #define MAX_USERNAME_LEN 50
 #define MAX_MSG_LEN 512
 
+pthread_mutex_t udp_socket_mutex;
+pthread_mutex_t file_mutex;
+
 struct msgBuffer {
     char username[MAX_USERNAME_LEN];
     int opCode;
@@ -29,6 +32,7 @@ struct ThreadContext {
 
 void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, struct sockaddr_in aD) {
     bool fileExists = true;
+    pthread_mutex_lock(&file_mutex);
     FILE *file = fopen(filename, "rb");
     if (!file) {
         perror("❌ Erreur d'ouverture du fichier");
@@ -46,10 +50,13 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
         strcpy(m.msg, filename);
 
         //Demande d'envoi de fichier
+        pthread_mutex_lock(&udp_socket_mutex);
         if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
             perror("❌ Erreur d'envoi de la requête");
+            pthread_mutex_unlock(&file_mutex);
             fclose(file);
         }
+        pthread_mutex_unlock(&udp_socket_mutex);
         printf("📤 Requête d'envoi de fichier envoyée pour '%s'\n", filename);
         
         
@@ -59,16 +66,17 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
         if (dSTCP == -1) {
             perror("❌ Erreur de création de la socket TCP");
             fclose(file);
+            pthread_mutex_unlock(&file_mutex);
         }
         
         
-        aSU.sin_port = htons(12347); // Port serveur fixe
         sleep(1);
 
         if (connect(dSTCP, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
             perror("❌ Erreur de connexion à la socket TCP du serveur");
             close(dSTCP);
             fclose(file);
+            pthread_mutex_unlock(&file_mutex);
         }
         printf("Connexion à la socket TCP établie\n");
         
@@ -82,16 +90,20 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
                 perror("Erreur lors de l'envoi des données");
                 close(dSTCP);
                 fclose(file);
+                pthread_mutex_unlock(&file_mutex);
             }
             printf("Envoi de %ld octets au serveur.", bytesRead);
         }
     
         close(dSTCP);
-
+        pthread_mutex_unlock(&file_mutex);
     }
 }
 
 void download_file(char* filename, char* username, int dS, struct sockaddr_in aS, struct sockaddr_in aD) {
+    pthread_mutex_lock(&file_mutex);
+
+
     FILE* file = fopen(filename, "wb");
     
     struct msgBuffer m;
@@ -102,10 +114,13 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         strcpy(m.msg, filename);
 
         //Demande de reception du fichier 
+        pthread_mutex_lock(&udp_socket_mutex);
         if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
             perror("❌ Erreur d'envoi de la requête");
+            pthread_mutex_unlock(&file_mutex);
             fclose(file);
         }
+        pthread_mutex_unlock(&file_mutex);
         printf("📤 Requête de reception de fichier envoyée pour '%s'\n", filename);
         
 
@@ -114,6 +129,7 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         if (dSTCP == -1) {
             perror("❌ Erreur de création de la socket TCP");
             fclose(file);
+            pthread_mutex_unlock(&file_mutex);
         }
         sleep(1);
 
@@ -121,6 +137,7 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
             perror("❌ Erreur de connexion à la socket TCP du serveur");
             close(dSTCP);
             fclose(file);
+            pthread_mutex_unlock(&file_mutex);
         }
         printf("Connexion à la socket TCP établie\n");
 
@@ -130,9 +147,11 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
             if (fwrite(buffer, 1, bytesReceived, file) != (size_t)bytesReceived) {
                 perror("Erreur lors de l'écriture dans le fichier");
                 close(dSTCP);
+                pthread_mutex_unlock(&file_mutex);
             }
         }
         fclose(file);
+        pthread_mutex_unlock(&file_mutex);
         printf("Fichier reçu.");
         close(dSTCP);
 
@@ -172,14 +191,15 @@ void* send_thread(void* arg) {
         } 
 
         else {
+            pthread_mutex_lock(&udp_socket_mutex);
             if (sendto(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&ctx->aS, sizeof(ctx->aS)) == -1) {
                 perror("❌ Erreur sendto");
                 continueEnvoie = false; 
             }
+            pthread_mutex_unlock(&udp_socket_mutex);
             printf("📤 Message envoyé : %s\n", m.msg);
         }
     }
-    return NULL;
 }
 
 // Fonction pour recevoir des messages
@@ -190,10 +210,12 @@ void* recv_thread(void* arg) {
     socklen_t fromLen = sizeof(from);
     bool continueReception = true;
     while (continueReception) {
+        pthread_mutex_lock(&udp_socket_mutex);
         if (recvfrom(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&from, &fromLen) == -1) {
             perror("❌ Erreur recvfrom");
             continueReception = false;
         }
+        pthread_mutex_unlock(&udp_socket_mutex);
         printf("\n📨 Message reçu de %s : %s\n", m.username, m.msg);
     }
     
@@ -251,5 +273,10 @@ int main(int argc, char *argv[]) {
 
     close(dS);
     printf("🔒 Socket fermée. Fin du client.\n");
+    
+
+    pthread_mutex_destroy(&udp_socket_mutex);
+    pthread_mutex_destroy(&file_mutex);
+
     return 0;
 }
