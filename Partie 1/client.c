@@ -20,17 +20,123 @@ struct msgBuffer {
     struct sockaddr_in adClient;
 };
 
-struct fileBuffer {
-    char filename[MAX_MSG_LEN];
-    int fileSize;
-    char fileData[MAX_MSG_LEN];
-};
 
 struct ThreadContext {
     int dS;
     struct sockaddr_in aS;
     char username[MAX_USERNAME_LEN];
 };
+
+void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, struct sockaddr_in aD) {
+    bool fileExists = true;
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("❌ Erreur d'ouverture du fichier");
+        printf("Le fichier '%s' n'existe pas ou n'est pas accessible\n", filename);
+        fileExists = false;
+    }
+
+
+    if (fileExists) {
+        struct msgBuffer m;
+        strcpy(m.username, username);
+        m.opCode = 2; // OpCode pour l'envoi de fichier
+        m.port = htons(aD.sin_port);
+        m.adClient = aD;
+        strcpy(m.msg, filename);
+
+        //Demande d'envoi de fichier
+        if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
+            perror("❌ Erreur d'envoi de la requête");
+            fclose(file);
+        }
+        printf("📤 Requête d'envoi de fichier envoyée pour '%s'\n", filename);
+        
+        
+        
+        // Création de la socket TCP du client
+        int dSTCP = socket(PF_INET, SOCK_STREAM, 0);
+        if (dSTCP == -1) {
+            perror("❌ Erreur de création de la socket TCP");
+            fclose(file);
+        }
+        
+        
+        aSU.sin_port = htons(12347); // Port serveur fixe
+        sleep(1);
+
+        if (connect(dSTCP, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
+            perror("❌ Erreur de connexion à la socket TCP du serveur");
+            close(dSTCP);
+            fclose(file);
+        }
+        printf("Connexion à la socket TCP établie\n");
+        
+        
+        
+        // Envoi du fichier via TCP
+        ssize_t bytesRead;
+        char buffer[MAX_MSG_LEN];
+        while ((bytesRead = fread(buffer, 1, MAX_MSG_LEN, file)) > 0) {
+            if (send(dSTCP, buffer, bytesRead, 0) < 0) {
+                perror("Erreur lors de l'envoi des données");
+                close(dSTCP);
+                fclose(file);
+            }
+            printf("Envoi de %ld octets au serveur.", bytesRead);
+        }
+    
+        close(dSTCP);
+
+    }
+}
+
+void download_file(char* filename, char* username, int dS, struct sockaddr_in aS, struct sockaddr_in aD) {
+    FILE* file = fopen(filename, "wb");
+    
+    struct msgBuffer m;
+        strcpy(m.username, username);
+        m.opCode = 6; // OpCode pour l'envoi de fichier
+        m.port = htons(aD.sin_port);
+        m.adClient = aD;
+        strcpy(m.msg, filename);
+
+        //Demande de reception du fichier 
+        if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
+            perror("❌ Erreur d'envoi de la requête");
+            fclose(file);
+        }
+        printf("📤 Requête de reception de fichier envoyée pour '%s'\n", filename);
+        
+
+        // Création de la socket TCP du client
+        int dSTCP = socket(PF_INET, SOCK_STREAM, 0);
+        if (dSTCP == -1) {
+            perror("❌ Erreur de création de la socket TCP");
+            fclose(file);
+        }
+        sleep(1);
+
+        if (connect(dSTCP, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
+            perror("❌ Erreur de connexion à la socket TCP du serveur");
+            close(dSTCP);
+            fclose(file);
+        }
+        printf("Connexion à la socket TCP établie\n");
+
+        char buffer[MAX_MSG_LEN];
+        ssize_t bytesReceived;
+        while ((bytesReceived = recv(dSTCP, buffer, MAX_MSG_LEN, 0)) > 0) {
+            if (fwrite(buffer, 1, bytesReceived, file) != (size_t)bytesReceived) {
+                perror("Erreur lors de l'écriture dans le fichier");
+                close(dSTCP);
+            }
+        }
+        fclose(file);
+        printf("Fichier reçu.");
+        close(dSTCP);
+
+}
 
 // Fonction pour envoyer des messages
 void* send_thread(void* arg) {
@@ -40,17 +146,31 @@ void* send_thread(void* arg) {
     m.opCode = 1;
     m.port = htons(ctx->aS.sin_port);  // On convertit en port lisible
     m.adClient = ctx->aS;
+
+
     bool continueEnvoie = true;
+
+
     while (continueEnvoie) {
         printf("✉️ Entrez un message : ");
-        scanf(" %[^\n]", m.msg); // Permet de lire les espaces
+        scanf(" %[^\n]", m.msg);
+
+
         m.msgSize = strlen(m.msg) + 1;
-        // Détecter si le message commence par "@UPLOAD " suivi d'un nom de fichier
+
+        
         if (strncmp(m.msg, "@UPLOAD ", 8) == 0 && strlen(m.msg) > 8) {
             char *filename = m.msg + 8;
             // Bloquer la réception dans ce thread pour éviter la concurrence sur la socket UDP
             upload_file(filename, ctx->username, ctx->dS, ctx->aS, ctx->aS);
+        }
+
+        if (strncmp(m.msg, "@DOWNLOAD ", 10) == 0 && strlen(m.msg) > 10) {
+            char *filename = m.msg + 10;
+            // Bloquer la réception dans ce thread pour éviter la concurrence sur la socket UDP
+            download_file(filename, ctx->username, ctx->dS, ctx->aS, ctx->aS);
         } 
+
         else {
             if (sendto(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&ctx->aS, sizeof(ctx->aS)) == -1) {
                 perror("❌ Erreur sendto");
@@ -77,89 +197,9 @@ void* recv_thread(void* arg) {
         printf("\n📨 Message reçu de %s : %s\n", m.username, m.msg);
     }
     
-
 }
 
-void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, struct sockaddr_in aD) {
-    // Vérification de l'existence du fichier avant d'envoyer la requête
-    bool fileExists = true;
-    FILE *file = fopen(filename, "rb");
-    if (!file) {
-        perror("❌ Erreur d'ouverture du fichier");
-        printf("Le fichier '%s' n'existe pas ou n'est pas accessible\n", filename);
-        fileExists = false;
-    }
-    if (fileExists) {
-        // Préparation du message de requête d'envoi de fichier
-        struct msgBuffer m;
-        strcpy(m.username, username);
-        m.opCode = 2; // OpCode pour l'envoi de fichier
-        m.port = htons(aD.sin_port); // Port du client
-        m.adClient = aD;
-        
-        // Envoi de la requête de transfert de fichier
-        if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
-            perror("❌ Erreur d'envoi de la requête");
-            fclose(file);
-        }
-        printf("📤 Requête d'envoi de fichier envoyée pour '%s'\n", filename);
-        
-        // Attente de la réponse du serveur contenant les infos de la socket TCP
-        struct sockaddr_in from;
-        socklen_t fromLen = sizeof(from);
-        
-        // Création de la socket TCP du client
-        int dSTCP = socket(PF_INET, SOCK_STREAM, 0);
-        if (dSTCP == -1) {
-            perror("❌ Erreur de création de la socket TCP");
-            fclose(file);
-        }
-        
-        // Utilisation de l'adresse du serveur pour la connexion TCP
-        struct sockaddr_in serverTCP;
-        serverTCP.sin_family = AF_INET;
-        serverTCP.sin_addr.s_addr = aS.sin_addr.s_addr;
-        serverTCP.sin_port = htons(12346); // Port TCP du serveur
-        printf("🔌 Adresse du serveur TCP : %s:%d\n", inet_ntoa(serverTCP.sin_addr), ntohs(serverTCP.sin_port));
-        
-        // Connexion à la socket TCP du serveur
-        if (connect(dSTCP, (struct sockaddr*)&serverTCP, sizeof(serverTCP)) == -1) {
-            perror("❌ Erreur de connexion à la socket TCP du serveur");
-            close(dSTCP);
-            fclose(file);
-        }
-        printf("🔗 Connexion à la socket TCP établie\n");
-        
-        struct fileBuffer f;
-        strncpy(f.filename, filename, MAX_MSG_LEN - 1);
-        f.filename[MAX_MSG_LEN - 1] = '\0'; // Garantir la terminaison de la chaîne
-        
-        // Envoi des données du fichier par morceaux
-        size_t bytesRead;
-        int totalSent = 0;
-        while ((bytesRead = fread(f.fileData, 1, sizeof(f.fileData), file)) > 0) {
-            f.fileSize = bytesRead;
-            
-            // Envoi de la structure fileBuffer
-            ssize_t bytesSent = send(dSTCP, &f, sizeof(f.filename) + sizeof(f.fileSize) + bytesRead, 0);
-            if (bytesSent == -1) {
-                perror("❌ Erreur lors de l'envoi du fichier");
-                close(dSTCP);
-                fclose(file);
-            }
-            
-            totalSent += bytesRead;
-            printf("📤 Envoi en cours: %d octets envoyés\n", totalSent);
-        }
-        
-        f.fileSize = 0;
-        send(dSTCP, &f, sizeof(f.filename) + sizeof(f.fileSize), 0);
-        
-        close(dSTCP);
-        fclose(file);
-        printf("✅ Fichier '%s' envoyé avec succès (%d octets)\n", filename, totalSent);
-    }
-}
+
 
 int main(int argc, char *argv[]) {
     printf("🟢 Démarrage du client UDP\n");
@@ -192,7 +232,7 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in aS;
     aS.sin_family = AF_INET;
     aS.sin_port = htons((short)12345); // Port serveur fixe
-    aS.sin_addr.s_addr = inet_addr(argv[1]); // IP serveur fournie
+    aS.sin_addr.s_addr = INADDR_ANY;
 
     struct ThreadContext ctx;
     ctx.dS = dS;
