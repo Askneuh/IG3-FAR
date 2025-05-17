@@ -99,9 +99,11 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     else if (msg->opCode == 2) { 
         printf("Demande de transfert de fichier reçue de %s\n", msg->username);
         
+
         pthread_mutex_lock(&file_mutex);
-        
-        FILE* receivedFile = fopen(msg->msg, "wb");
+        char new_filename[256]; // Assurez-vous que le tableau est assez grand
+        snprintf(new_filename, sizeof(new_filename), "serv_%s", msg->msg);
+        FILE* receivedFile = fopen(new_filename, "wb");
 
         printf("Fichier créé\n");
 
@@ -121,8 +123,35 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
 
         
         
-        // Bind de la socket TCP
-        if (bind(dSTCP, (struct sockaddr*)&adServeur, sizeof(adServeur)) == -1) {
+        struct sockaddr_in tcpAddr = adServeur;
+        tcpAddr.sin_port = htons(adrExp.sin_port + 1);
+
+        //renvoyer le port au client
+        struct msgBuffer msgPort;
+        msgPort.opCode = 5; // OpCode pour l'envoi du port
+        msgPort.port = htons(adrExp.sin_port + 1); 
+       
+        int opt = 1;
+        if (setsockopt(dSTCP, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt))) {
+            perror("setsockopt");
+            close(dSTCP);
+            pthread_mutex_unlock(&file_mutex);
+            return clientList;
+        }
+
+        pthread_mutex_lock(&udp_socket_mutex);
+        if (sendto(dS, &msgPort, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen) == -1) {
+            perror("Erreur d'envoi du port");
+            pthread_mutex_unlock(&udp_socket_mutex);
+            close(dSTCP);
+            fclose(receivedFile);
+            pthread_mutex_unlock(&file_mutex);
+            return clientList;
+        }
+        printf("Port TCP %d envoyé au client\n", msgPort.port);
+        pthread_mutex_unlock(&udp_socket_mutex);
+
+        if (bind(dSTCP, (struct sockaddr*)&tcpAddr, sizeof(tcpAddr)) == -1) {
             perror("Erreur bind socket TCP");
             close(dSTCP);
             strcpy(msg->msg, "Erreur serveur: impossible de bind la socket TCP");
@@ -134,19 +163,15 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         }
 
         printf("Binded\n");
-        
-        // Mise en écoute de la socket TCP
-        if (listen(dSTCP, 5) == -1) {
-            perror("Erreur listen socket TCP");
-            close(dSTCP);
-            pthread_mutex_unlock(&file_mutex);
-            return clientList;
-        }
-            
-        printf("En attente de connexion TCP du client...\n");
+
+       
+
+        listen(dSTCP, 10);
+
         // Acceptation de la connexion TCP du client
         socklen_t lg = sizeof(adrExp);
         int clientSocketTCP = accept(dSTCP, (struct sockaddr*)&adrExp, &lg);
+        printf("Accepté\n");
         
         if (clientSocketTCP == -1) {
             perror("❌ Erreur accept");
@@ -208,32 +233,57 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
 
             
             
-            // Bind de la socket TCP
-            if (bind(dSTCP, (struct sockaddr*)&adServeur, sizeof(adServeur)) == -1) {
-                perror("Erreur bind socket TCP");
+            struct sockaddr_in tcpAddr = adServeur;
+            tcpAddr.sin_port = htons(adrExp.sin_port + 2);
+
+            //renvoyer le port au client
+            struct msgBuffer msgPort;
+            msgPort.opCode = 5; // OpCode pour l'envoi du port
+            msgPort.port = htons(adrExp.sin_port + 2); 
+            
+
+            int opt = 1;
+            if (setsockopt(dSTCP, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt))) {
+                perror("setsockopt");
                 close(dSTCP);
-                strcpy(msg->msg, "Erreur serveur: impossible de bind la socket TCP");
-                pthread_mutex_lock(&udp_socket_mutex);
-                sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
-                pthread_mutex_unlock(&udp_socket_mutex);
                 pthread_mutex_unlock(&file_mutex);
                 return clientList;
+            }
+        
+
+            pthread_mutex_lock(&udp_socket_mutex);
+            if (sendto(dS, &msgPort, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen) == -1) {
+                perror("Erreur d'envoi du port");
+                pthread_mutex_unlock(&udp_socket_mutex);
+                close(dSTCP);
+                fclose(file);
+                pthread_mutex_unlock(&file_mutex);
+                return clientList;
+            }
+            printf("Port TCP %d envoyé au client\n", msgPort.port);
+            pthread_mutex_unlock(&udp_socket_mutex);
+
+            if (bind(dSTCP, (struct sockaddr*)&tcpAddr, sizeof(tcpAddr)) == -1) {
+            perror("Erreur bind socket TCP");
+            close(dSTCP);
+            strcpy(msg->msg, "Erreur serveur: impossible de bind la socket TCP");
+            pthread_mutex_lock(&udp_socket_mutex);
+            sendto(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, adrExpLen);
+            pthread_mutex_unlock(&udp_socket_mutex);
+            pthread_mutex_unlock(&file_mutex);
+            return clientList;
             }
 
             printf("Binded\n");
-            
-            // Mise en écoute de la socket TCP
-            if (listen(dSTCP, 5) == -1) {
-                perror("Erreur listen socket TCP");
-                close(dSTCP);
-                pthread_mutex_unlock(&file_mutex);
-                return clientList;
-            }
-                
-            printf("En attente de connexion TCP du client...\n");
+
+       
+
+            listen(dSTCP, 10);
+
             // Acceptation de la connexion TCP du client
             socklen_t lg = sizeof(adrExp);
             int clientSocketTCP = accept(dSTCP, (struct sockaddr*)&adrExp, &lg);
+            printf("Accepté\n");
             
             if (clientSocketTCP == -1) {
                 perror("❌ Erreur accept");
