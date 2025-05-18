@@ -26,12 +26,19 @@ Cette partie implémente une application de messagerie textuelle distante en C u
 ## Fichiers importants :
 
 • server.c : code du serveur UDP
+
 • client.c : code du client UDP
+
 • client_list.c/.h : gestion de la liste des clients connectés
+
 • command.c/.h : parsing et gestion des commandes
+
 • users.c/.h : gestion des utilisateurs et authentification
+
 • users.txt : base des utilisateurs (pseudo motdepasse admin)
+
 • help.txt : aide utilisateur
+
 • credits.txt : crédits de l’application
 
 ## Compilation :
