@@ -1,0 +1,7 @@
+Commandes disponibles :
+@help        : Affiche cette aide
+@ping        : Teste la connexion avec le serveur
+@msg <user> <msg> : Envoie un message privé
+@credits     : Affiche les crédits de l'application
+@shutdown    : Arrête le serveur (admin uniquement)
+@connect <login> <mdp> : Connexion avec pseudo et mot de passe
