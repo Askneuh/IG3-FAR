@@ -65,3 +65,60 @@ Dans trois terminaux différents :
 
 - Saisir le pseudo et le mot de passe (doivent exister dans users.txt)
 - Utiliser les commandes listées ci-dessus pour interagir avec le serveur et les autres clients
+
+## Diagramme de séquence UML :
+
+sequenceDiagram
+    participant Serveur
+    box Clients
+        participant Client1
+        participant Client2
+    end
+
+    %% Démarrage
+    Serveur->>Serveur: Initialisation (socket, variables, users.txt)
+    Serveur->>Serveur: Attente de connexions
+
+    %% Connexion d'un client
+    Client1->>Serveur: @connect <login> <mdp>
+    Serveur->>Serveur: Vérification pseudo/mot de passe
+    alt Authentification OK
+        Serveur-->>Client1: Message de bienvenue
+        Serveur->>Serveur: Ajout à la liste des clients connectés
+    else Authentification échouée
+        Serveur-->>Client1: Erreur d'authentification
+    end
+
+    %% Boucle principale
+    loop Tant que le client est connecté
+        par Thread d'envoi côté client
+            Client1->>Serveur: Message ou commande (@msg, @list, ...)
+        and Thread de réception côté client
+            Serveur-->>Client1: Message reçu ou réponse à une commande
+        end
+
+        alt Si message = commande
+            Serveur->>Serveur: Parse et exécute la commande
+            alt @msg <user> <msg>
+                Serveur->>Serveur: Recherche du destinataire
+                Serveur-->>Client2: Message privé
+                Serveur-->>Client1: Confirmation d'envoi
+            else @list
+                Serveur-->>Client1: Liste des utilisateurs connectés
+            else @help ou @credits
+                Serveur-->>Client1: Affichage du fichier correspondant
+            else @shutdown (admin)
+                Serveur-->>Client1: Message d'arrêt
+                Serveur->>Serveur: Arrêt du serveur
+            end
+        else Si message normal
+            Serveur-->>Clients: Diffusion à tous les clients connectés
+        end
+    end
+
+    %% Déconnexion
+    Client1->>Serveur: Déconnexion (ou fermeture socket)
+    Serveur->>Serveur: Suppression du client de la liste
+
+    %% Arrêt du serveur
+    Serveur->>Serveur: Fermeture socket, libération mémoire
