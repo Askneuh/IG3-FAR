@@ -9,6 +9,8 @@
 #include <string.h>
 #include <errno.h>
 #include "client_list.h"
+#include "command.h"
+#include "users.h"
 
 #define MAX_USERNAME_LEN 50
 #define MAX_MSG_LEN 512
@@ -22,7 +24,11 @@ struct msgBuffer {
     int msgSize;
     int port;
     struct sockaddr_in adClient;
+    char password[MAX_PASSWORD_LEN];
 };
+void sendMessageToClient(struct msgBuffer* msg, int serverSocket, struct sockaddr_in* addr) {
+    sendto(serverSocket, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)addr, sizeof(struct sockaddr_in));
+}
 
 int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket) {
     ClientNode* current = clientList;
@@ -80,37 +86,109 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     }
     return clientList; 
 }
+void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, User* users, int nbUsers) {
+    struct msgBuffer response;
+    memset(&response, 0, sizeof(response));
+    strcpy(response.username, "server");
+    response.adClient = msg->adClient;
+    response.port = msg->port;
+
+    switch (cmd.type) {
+        case CMD_HELP:
+            snprintf(response.msg, MAX_MSG_LEN, "Commandes: @help, @ping, @msg <user> <msg>, @credits, @shutdown, @connect <login> <mdp>");
+            break;
+        case CMD_PING:
+            snprintf(response.msg, MAX_MSG_LEN, "pong");
+            break;
+        case CMD_CREDITS:
+            snprintf(response.msg, MAX_MSG_LEN, "Projet Chat UDP - 2025");
+            break;
+        case CMD_SHUTDOWN:
+            snprintf(response.msg, MAX_MSG_LEN, "Serveur en cours d'arrêt...");
+            sendMessageToClient(&response, dS, &msg->adClient);
+            exit(0);
+            break;
+        case CMD_CONNECT: {
+            int idx = findUser(users, nbUsers, cmd.arg1);
+            if (idx >= 0 && checkPassword(users, idx, cmd.arg2)) {
+                snprintf(response.msg, MAX_MSG_LEN, "📢 Connexion réussie, bienvenue %s !", cmd.arg1);
+                strcpy(msg->username, cmd.arg1);
+                if (!clientAlreadyExists(*clientList, *((struct client*)&msg->adClient))) {
+                    struct client c;
+                    c.adClient = msg->adClient;
+                    c.port = msg->port;
+                    strcpy(c.username, cmd.arg1);
+                    *clientList = addClient(*clientList, c);
+                }
+            } else {
+                snprintf(response.msg, MAX_MSG_LEN, "Erreur d'authentification.");
+            }
+            break;
+        }
+        case CMD_MSG: {
+            // Message privé
+            ClientNode* dest = findClientByName(*clientList, cmd.arg1);
+            if (dest) {
+                snprintf(response.msg, MAX_MSG_LEN, "[privé de %s]: %s", msg->username, cmd.arg2);
+                sendMessageToClient(&response, dS, &dest->data.adClient);
+                snprintf(response.msg, MAX_MSG_LEN, "Message privé envoyé à %s.", cmd.arg1);
+            } else {
+                snprintf(response.msg, MAX_MSG_LEN, "Utilisateur %s introuvable.", cmd.arg1);
+            }
+            break;
+        }
+        case CMD_LIST: {
+            // Affiche la liste des utilisateurs connectés
+            char liste[MAX_MSG_LEN] = "Utilisateurs connectés :";
+            ClientNode* cur = *clientList;
+            while (cur) {
+                strcat(liste, " ");
+                strcat(liste, cur->data.username);
+                cur = cur->next;
+            }
+            snprintf(response.msg, MAX_MSG_LEN, "%s", liste);
+            break;
+        }
+        default:
+            snprintf(response.msg, MAX_MSG_LEN, "Commande inconnue.");
+    }
+    sendMessageToClient(&response, dS, &msg->adClient);
+}
 
 
 int main(int argc, char* argv[]) {
-    int dS = socket(AF_INET, SOCK_DGRAM, 0); 
-    if (dS == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
+    int dS = socket(AF_INET, SOCK_DGRAM, 0);
+    if (dS == -1) { perror("socket"); exit(EXIT_FAILURE); }
     struct sockaddr_in adServeur;
-    adServeur.sin_family = AF_INET; 
-    adServeur.sin_addr.s_addr = INADDR_ANY; 
-    adServeur.sin_port = htons((short)12345);
-    if (bind(dS, (struct sockaddr*)&adServeur, sizeof(adServeur)) == -1) { 
-        perror("bind");
-        close(dS);
-        exit(EXIT_FAILURE);
+    adServeur.sin_family = AF_INET;
+    adServeur.sin_addr.s_addr = INADDR_ANY;
+    adServeur.sin_port = htons(12345);
+    if (bind(dS, (struct sockaddr*)&adServeur, sizeof(adServeur)) == -1) {
+        perror("bind"); close(dS); exit(EXIT_FAILURE);
     }
 
     ClientNode* clientList = NULL;
+    User users[MAX_USERS];
+    int nbUsers = 0;
+    loadUsers("users.txt", users, &nbUsers);
 
+    struct msgBuffer msg;
+    while (1) {
+        struct sockaddr_in adrExp;
+        socklen_t adrExpLen = sizeof(adrExp);
+        if (recvfrom(dS, &msg, sizeof(msg), 0, (struct sockaddr*)&adrExp, &adrExpLen) == -1) {
+            perror("recvfrom"); continue;
+        }
+        msg.adClient = adrExp;
 
-    struct msgBuffer* msg = malloc(sizeof(struct msgBuffer)); 
-    
-    while(1) {
-        printf("En attente de message...\n");
-        clientList = ReceiveMessage(dS, msg, clientList); 
-        printf("Liste des clients :\n");
-        printClients(clientList);
+        Command cmd = parseCommand(msg.msg);
+        if (cmd.type != CMD_UNKNOWN) {
+            handleCommand(cmd, &msg, dS, &clientList, users, nbUsers);
+        } else {
+            // Message normal : broadcast
+            sendMessageToAllClients(clientList, &msg, dS);
+        }
     }
-
-    free(msg);
     freeClients(clientList);
     close(dS);
     return 0;
