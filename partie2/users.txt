@@ -1,0 +1,4 @@
+salma motdepasse1 0
+seb motdepasse2 0
+matteo motdepasse3 0
+noizet motdepasse0 1
