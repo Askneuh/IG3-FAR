@@ -68,6 +68,7 @@ Dans trois terminaux différents :
 
 ## Diagramme de séquence UML :
 
+```mermaid
 sequenceDiagram
     participant Serveur
     box Clients
@@ -122,3 +123,4 @@ sequenceDiagram
 
     %% Arrêt du serveur
     Serveur->>Serveur: Fermeture socket, libération mémoire
+```
