@@ -1,0 +1,25 @@
+@startuml
+actor Client
+participant "Serveur Principal" as Server
+participant "Socket TCP Serveur" as SocketServer
+
+Client -> Server : Demande de download
+activate Client
+activate Server
+
+Server -> Server : Création de socket TCP (SocketServer)
+Server -> Server : Génère un port pour transfert
+Server -> Client : Envoie du port à utiliser
+deactivate Server
+
+Client -> SocketServer : Connexion au port reçu
+activate SocketServer
+
+SocketServer -> Client : Accepte la connexion
+
+SocketServer -> Client : Envoie du fichier
+Client -> Client : Reçoit et stocke le fichier
+
+deactivate Client
+deactivate SocketServer
+@enduml
