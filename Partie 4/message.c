@@ -2,9 +2,9 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
 #include "client_list.h"
-#include "message.h"
+#include "message.h"  
+
 
 // ✅ Envoie un message à un seul client
 int sendMessageToOneClient(struct client client, struct msgBuffer* msg, int serverSocket) {
@@ -22,13 +22,14 @@ int sendMessageToOneClient(struct client client, struct msgBuffer* msg, int serv
     if (result == -1) {
         perror("❌ Erreur lors de l'envoi du message au client");
         return -1;
-    } else {
+    } else if (msg->opCode == 1 || msg->opCode == 7) {
         printf("📤 Message envoyé à %s [%s:%d]\n",
                client.username,
                inet_ntoa(client.adClient.sin_addr),
                ntohs(client.adClient.sin_port));
-        return 0;
     }
+
+    return 0;
 }
 
 // ✅ Envoie un message à tous les clients SAUF l'émetteur
@@ -40,32 +41,36 @@ int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int s
     while (current != NULL) {
         struct client cible = current->data;
 
-        if (!(cible.adClient.sin_addr.s_addr == msg->adClient.sin_addr.s_addr &&
-              cible.adClient.sin_port == msg->adClient.sin_port)) {
+        // ❌ Exclure l'émetteur
+        if (cible.adClient.sin_addr.s_addr == msg->adClient.sin_addr.s_addr &&
+            cible.adClient.sin_port == msg->adClient.sin_port) {
+            current = current->next;
+            continue;
+        }
+        printf("🔁 Message ignoré pour l'émetteur %s\n", cible.username);
 
-            int result = sendMessageToOneClient(cible, msg, serverSocket);
 
-            if (result == -1) {
-                errorCount++;
-            } else {
-                successCount++;
-            }
+        int result = sendMessageToOneClient(cible, msg, serverSocket);
+        if (result == -1) {
+            errorCount++;
+        } else {
+            successCount++;
         }
 
         current = current->next;
     }
 
-    printf("📢 Message diffusé à %d clients (%d erreurs)\n", successCount, errorCount);
+    printf("📢 Message global envoyé à %d clients (%d erreurs)\n", successCount, errorCount);
     return successCount;
 }
 
-void envoyerMessageAListe(ClientNode* clientList, struct msgBuffer* msg, int serverSocket, struct client* exception) {
-    ClientNode* current = clientList;
+// ✅ Envoie un message à une liste chaînée avec exception optionnelle
+void envoyerMessageAListe(ClientNode* liste, struct msgBuffer* msg, int serverSocket, struct client* exception) {
+    ClientNode* current = liste;
 
     while (current != NULL) {
         struct client cible = current->data;
 
-        // ❌ Skip si exception non NULL et correspond au client cible
         if (exception != NULL &&
             cible.adClient.sin_addr.s_addr == exception->adClient.sin_addr.s_addr &&
             cible.adClient.sin_port == exception->adClient.sin_port) {
@@ -77,4 +82,3 @@ void envoyerMessageAListe(ClientNode* clientList, struct msgBuffer* msg, int ser
         current = current->next;
     }
 }
-

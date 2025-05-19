@@ -1,14 +1,14 @@
 #ifndef SALON_H
 #define SALON_H
+
 #define MAX_NAME 50
-#define MAX_CLIENTS 10
 #define MAX_SALONS 20
+
 #include "client_list.h"
 
 typedef struct {
     char nom[MAX_NAME];
-    struct client clients[MAX_CLIENTS];
-    int nb_clients;
+    ClientNode* clients;  // ✅ Liste chaînée de clients
 } Salon;
 
 extern Salon salons[MAX_SALONS];
@@ -20,6 +20,6 @@ int retirerClientDuSalon(const char *nom, struct client c);
 int salonExiste(const char *nom);
 void afficherSalons();
 void afficherinfoSalon(const char *nomSalon);
-
+char* trouverSalonDuClient(struct client c);
 
 #endif

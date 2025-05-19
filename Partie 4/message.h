@@ -24,7 +24,6 @@ int sendMessageToOneClient(struct client c, struct msgBuffer* msg, int serverSoc
 int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket);
 
 // (optionnel) Envoie à un tableau de clients si jamais tu veux faire une version tableau
-void envoyerMessageAListe(ClientNode* clientList, struct msgBuffer* msg, int serverSocket, struct client* exception);
-
+void envoyerMessageAListe(ClientNode* liste, struct msgBuffer* msg, int serverSocket, struct client* exception);
 
 #endif

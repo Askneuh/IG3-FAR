@@ -52,3 +52,12 @@ bool clientAlreadyExists(ClientNode* head, struct client c) {
     }
     return false;
 }
+
+int countClients(ClientNode* head) {
+    int count = 0;
+    while (head != NULL) {
+        count++;
+        head = head->next;
+    }
+    return count;
+}

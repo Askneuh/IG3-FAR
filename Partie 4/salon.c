@@ -2,6 +2,7 @@
 #include "message.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 Salon salons[MAX_SALONS];
 int nb_salons = 0;
@@ -17,24 +18,27 @@ int salonExiste(const char *nom) {
 int creerSalon(const char *nom) {
     if (nb_salons >= MAX_SALONS || salonExiste(nom) != -1) return -1;
     strcpy(salons[nb_salons].nom, nom);
-    salons[nb_salons].nb_clients = 0;
+    salons[nb_salons].clients = NULL;
     nb_salons++;
     return 0;
 }
 
 int ajouterClientAuSalon(const char *nom, struct client c) {
     int idx = salonExiste(nom);
-    if (idx == -1 || salons[idx].nb_clients >= MAX_CLIENTS) return -1;
+    if (idx == -1) return -1;
 
-    // Vérifier si le client est déjà dedans (pour éviter doublons)
-    for (int i = 0; i < salons[idx].nb_clients; i++) {
-        if (salons[idx].clients[i].adClient.sin_addr.s_addr == c.adClient.sin_addr.s_addr &&
-            salons[idx].clients[i].adClient.sin_port == c.adClient.sin_port) {
+    // Vérifie si le client est déjà dans le salon
+    ClientNode* current = salons[idx].clients;
+    while (current != NULL) {
+        if (current->data.adClient.sin_addr.s_addr == c.adClient.sin_addr.s_addr &&
+            current->data.adClient.sin_port == c.adClient.sin_port) {
             return -2; // déjà présent
         }
+        current = current->next;
     }
 
-    salons[idx].clients[salons[idx].nb_clients++] = c;
+    // Ajout du client
+    salons[idx].clients = addClient(salons[idx].clients, c);
     return 0;
 }
 
@@ -42,25 +46,32 @@ int retirerClientDuSalon(const char *nom, struct client c) {
     int idx = salonExiste(nom);
     if (idx == -1) return -1;
 
-    for (int i = 0; i < salons[idx].nb_clients; i++) {
-        if (salons[idx].clients[i].adClient.sin_addr.s_addr == c.adClient.sin_addr.s_addr &&
-            salons[idx].clients[i].adClient.sin_port == c.adClient.sin_port) {
-            
-            for (int j = i; j < salons[idx].nb_clients - 1; j++) {
-                salons[idx].clients[j] = salons[idx].clients[j + 1];
+    ClientNode* prev = NULL;
+    ClientNode* current = salons[idx].clients;
+
+    while (current != NULL) {
+        if (current->data.adClient.sin_addr.s_addr == c.adClient.sin_addr.s_addr &&
+            current->data.adClient.sin_port == c.adClient.sin_port) {
+
+            if (prev == NULL) {
+                salons[idx].clients = current->next;
+            } else {
+                prev->next = current->next;
             }
-            salons[idx].nb_clients--;
+            free(current);
             return 0;
         }
+        prev = current;
+        current = current->next;
     }
 
-    return -1; // pas trouvé
+    return -1;
 }
 
 void afficherSalons() {
     printf("📁 Liste des salons :\n");
     for (int i = 0; i < nb_salons; i++) {
-        printf(" - %s (%d membres)\n", salons[i].nom, salons[i].nb_clients);
+        printf(" - %s\n", salons[i].nom);
     }
 }
 
@@ -73,16 +84,39 @@ void afficherinfoSalon(const char *nomSalon) {
 
     Salon s = salons[idx];
     printf("\n📂 Infos du salon \"%s\"\n", s.nom);
-    printf("👥 Nombre de clients : %d\n", s.nb_clients);
 
-    if (s.nb_clients == 0) {
+    int count = 0;
+    ClientNode* current = s.clients;
+    while (current != NULL) {
+        count++;
+        current = current->next;
+    }
+
+    printf("👥 Nombre de clients : %d\n", count);
+
+    if (count == 0) {
         printf("(Aucun membre)\n");
     } else {
-        for (int i = 0; i < s.nb_clients; i++) {
-            printf("  - %s\n", s.clients[i].username);
+        current = s.clients;
+        while (current != NULL) {
+            printf("  - %s\n", current->data.username);
+            current = current->next;
         }
     }
 
     printf("-------------------------------\n");
 }
 
+char* trouverSalonDuClient(struct client c) {
+    for (int i = 0; i < nb_salons; i++) {
+        ClientNode* current = salons[i].clients;
+        while (current != NULL) {
+            if (current->data.adClient.sin_addr.s_addr == c.adClient.sin_addr.s_addr &&
+                current->data.adClient.sin_port == c.adClient.sin_port) {
+                return salons[i].nom;
+            }
+            current = current->next;
+        }
+    }
+    return NULL;
+}
