@@ -62,25 +62,20 @@ void* send_thread(void* arg) {
            // Cas 4 : commande autre que upload/download
            m.opCode = 9; // ou la valeur attendue pour une commande
            pthread_mutex_lock(&udp_socket_mutex);
-           printf("Lock UDP\n");
            if (sendto(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&ctx->aS, sizeof(ctx->aS)) == -1) {
                perror("❌ Erreur sendto");
                continueEnvoie = false;
            }
-           printf("commande envoyée, op code : %d\n", m.opCode);
            pthread_mutex_unlock(&udp_socket_mutex);
-           printf("Unlock UDP\n");
        }
        else {
            m.opCode = 1 ;
            pthread_mutex_lock(&udp_socket_mutex);
-           printf("Lock UDP\n");
            if (sendto(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&ctx->aS, sizeof(ctx->aS)) == -1) {
                perror("❌ Erreur sendto");
                continueEnvoie = false;
            }
            pthread_mutex_unlock(&udp_socket_mutex);
-           printf("Unlock UDP\n");
        }
 
     }
@@ -111,10 +106,15 @@ void* recv_thread(void* arg) {
             expected_msg = m;
             msg_received = 1;
             pthread_mutex_unlock(&opcode_mutex);
-            continue;  // Ne pas l'afficher, continuer la boucle
+        }
+        if (m.opCode > 8) {
+            printf("%s", m.msg);
+        }
+        
+        else {
+            printf("\n📨 Message reçu de %s : %s\n", m.username, m.msg);
         }
         pthread_mutex_unlock(&opcode_mutex);
-        printf("\n📨 Message reçu de %s : %s\n", m.username, m.msg);
     }
     
 }

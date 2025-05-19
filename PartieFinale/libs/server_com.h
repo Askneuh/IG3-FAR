@@ -14,5 +14,4 @@
 
 ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, User* users, int nbUsers, struct sockaddr_in adServeur);
 int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket);
-void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, User* users, int nbUsers);
 #endif // SERVER_COM_H

@@ -308,7 +308,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         // Commandes/chat
         Command cmd = parseCommand(msg->msg);
         if (cmd.type != CMD_UNKNOWN) {
-            handleCommand(cmd, msg, dS, &clientList, users, nbUsers);
+            handleCommand(cmd, msg, dS, &clientList, users, nbUsers, adrExp);
         } else {
             sendMessageToAllClients(clientList, msg, dS); 
         }
@@ -323,8 +323,9 @@ void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clie
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
-    response.adClient = adrExp;
-    response.port = adrExp.sin_port;
+    response.adClient = msg->adClient;
+    response.port = msg->port;
+    response.opCode = 9; // OpCode pour le message de réponse aux commandes
 
     switch (cmd.type) {
         case CMD_HELP:
@@ -382,10 +383,12 @@ void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clie
                 strcat(liste, cur->data.username);
                 cur = cur->next;
             }
-            snprintf(response.msg, MAX_MSG_LEN, "%s", liste);            break;
+            snprintf(response.msg, MAX_MSG_LEN, "%s", liste);
+            break;
         }
         default:
             snprintf(response.msg, MAX_MSG_LEN, "Commande inconnue.");
     }
+    printf("envoie avec le opCode %d\n", response.opCode);
     sendMessageToClient(&response, dS, &adrExp);
 }
