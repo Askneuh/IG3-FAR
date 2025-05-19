@@ -12,6 +12,7 @@ typedef enum {
     CMD_SHUTDOWN,
     CMD_CONNECT,
     CMD_LIST,
+    CMD_CREATE,
     CMD_UNKNOWN
 } CommandType;
 
