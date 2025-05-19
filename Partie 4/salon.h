@@ -21,5 +21,9 @@ int salonExiste(const char *nom);
 void afficherSalons();
 void afficherinfoSalon(const char *nomSalon);
 char* trouverSalonDuClient(struct client c);
+void chargerSalons(void);
+void sauvegarderSalons(void);
+int pseudoDansSalon(const char *nom, const char *pseudo);
+void restaurerClientDansSesSalons(struct client c);
 
 #endif

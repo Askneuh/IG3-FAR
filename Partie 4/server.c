@@ -22,23 +22,26 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
 
     struct sockaddr_in adrExp;
     socklen_t adrExpLen = sizeof(adrExp);
-    if (recvfrom(dS, msg, sizeof(struct msgBuffer), 0, (struct sockaddr*)&adrExp, &adrExpLen) == -1) { // On reçoit le message
+    if (recvfrom(dS, msg, sizeof(*msg), 0, (struct sockaddr*)&adrExp, &adrExpLen) == -1) {
         perror("recvfrom");
         close(dS);
         exit(EXIT_FAILURE);
     }
-    printf("Received message from %s\n", msg->username); 
-    printf("Message reçu : %s\n", msg->msg); 
+    printf("Received message from %s\n", msg->username);
+    printf("Message reçu : %s\n", msg->msg);
 
     struct client c;
-    c.adClient = adrExp;
-    c.port = msg->port;
-    c.dSClient = dS;
-    strcpy(c.username, msg->username); 
-    
-    if (!clientAlreadyExists(clientList, c)) { 
-        clientList = addClient(clientList, c); 
-        printf("Nouveau client ajouté: %s\n", c.username);
+    c.adClient   = adrExp;
+    c.port       = msg->port;
+    c.dSClient   = dS;
+    strcpy(c.username, msg->username);
+
+    // 1) On ajoute à la liste globale si c’est un nouveau peer
+    if (!clientAlreadyExists(clientList, c)) {
+        clientList = addClient(clientList, c);
+        printf("➕ Nouveau client ajouté: %s\n", c.username);
+
+
     }
     
     // 🔁 Toujours exécuter le traitement du message ensuite
@@ -297,7 +300,7 @@ int main(int argc, char* argv[]) {
 
 
     struct msgBuffer* msg = malloc(sizeof(struct msgBuffer)); 
-    
+    chargerSalons();
     while(1) {
         printf("En attente de message...\n");
         clientList = ReceiveMessage(dS, msg, clientList); 
