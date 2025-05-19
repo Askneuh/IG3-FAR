@@ -19,6 +19,7 @@ Command parseCommand(const char* msg) {
     } else if (strncmp(msg, "@connect ", 9) == 0) {
         cmd.type = CMD_CONNECT;
         sscanf(msg + 9, "%s %s", cmd.arg1, cmd.arg2);
+    }
     else if (strncmp(msg, "@list", 5) == 0) {
         cmd.type = CMD_LIST;
     } 
