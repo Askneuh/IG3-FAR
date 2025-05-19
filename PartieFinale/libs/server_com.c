@@ -350,15 +350,17 @@ void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clie
             if (idx >= 0 && checkPassword(users, idx, cmd.arg2)) {
                 snprintf(response.msg, MAX_MSG_LEN, "📢 Connexion réussie, bienvenue %s !", cmd.arg1);
                 strcpy(msg->username, cmd.arg1);
-                if (!clientAlreadyExists(*clientList, *((struct client*)&msg->adClient))) {
+                if (!clientAlreadyExists(*clientList, *((struct client*)&adrExp))) {
                     struct client c;
-                    c.adClient = msg->adClient;
-                    c.port = msg->port;
+                    c.adClient = adrExp;
+                    c.port = ntohs(adrExp.sin_port);
                     strcpy(c.username, cmd.arg1);
                     *clientList = addClient(*clientList, c);
                 }
-            } else {
+            } else if (idx >= 0) {
                 snprintf(response.msg, MAX_MSG_LEN, "Erreur d'authentification.");
+            } else {
+                snprintf(response.msg, MAX_MSG_LEN, "Utilisateur inconnu. Utilisez @create <pseudo> <mdp> pour créer un compte.");
             }
             break;
         }
@@ -384,6 +386,35 @@ void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clie
                 cur = cur->next;
             }
             snprintf(response.msg, MAX_MSG_LEN, "%s", liste);
+            break;
+        }
+       case CMD_CREATE: {
+            int idx = findUser(users, nbUsers, cmd.arg1);
+            if (idx >= 0) {
+                snprintf(response.msg, MAX_MSG_LEN, "Ce pseudo existe déjà.");
+            } else {
+            // Ajout dans users.txt
+                FILE* f = fopen("users.txt", "a");
+                if (f) {
+                    fprintf(f, "%s %s\n", cmd.arg1, cmd.arg2);
+                    fclose(f);
+                    snprintf(response.msg, MAX_MSG_LEN, "Compte créé, bienvenue %s !", cmd.arg1);
+                    // Ajout dans la liste en mémoire
+                    strcpy(users[nbUsers].username, cmd.arg1);
+                    strcpy(users[nbUsers].password, cmd.arg2);
+                    nbUsers++;
+                    // Ajout dans la liste des clients connectés
+                    if (!clientAlreadyExists(*clientList, *((struct client*)&adrExp))) {
+                        struct client c;
+                        c.adClient = adrExp;
+                        c.port = ntohs(adrExp.sin_port);
+                        strcpy(c.username, cmd.arg1);
+                        *clientList = addClient(*clientList, c);
+                    }
+                } else {
+                    snprintf(response.msg, MAX_MSG_LEN, "Erreur lors de la création du compte.");
+                }
+            }
             break;
         }
         default:

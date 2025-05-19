@@ -19,9 +19,14 @@ Command parseCommand(const char* msg) {
     } else if (strncmp(msg, "@connect ", 9) == 0) {
         cmd.type = CMD_CONNECT;
         sscanf(msg + 9, "%s %s", cmd.arg1, cmd.arg2);
-    } else if (strncmp(msg, "@list", 5) == 0) {
+    else if (strncmp(msg, "@list", 5) == 0) {
         cmd.type = CMD_LIST;
-    } else {
+    } 
+    else if (strncmp(msg, "@create ", 8) == 0) {
+        cmd.type = CMD_CREATE;
+        sscanf(msg + 8, "%s %s", cmd.arg1, cmd.arg2);
+    }
+    else {
         cmd.type = CMD_UNKNOWN;
     }
     return cmd;
@@ -35,7 +40,8 @@ const char* commandTypeToString(CommandType type) {
         case CMD_CREDITS: return "CREDITS";
         case CMD_SHUTDOWN: return "SHUTDOWN";
         case CMD_CONNECT: return "CONNECT";
-        case CMD_LIST: return "LIST";   
+        case CMD_LIST: return "LIST"; 
+        case CMD_CREATE : return "CREATE";
         default: return "UNKNOWN";
     }
 }
