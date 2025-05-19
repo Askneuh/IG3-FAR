@@ -384,6 +384,25 @@ void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clie
             }
             snprintf(response.msg, MAX_MSG_LEN, "%s", liste);            break;
         }
+        case CMD_CONNECT: {
+            int idx = findUser(users, nbUsers, cmd.arg1);
+            if (idx >= 0 && checkPassword(users, idx, cmd.arg2)) {
+                snprintf(response.msg, MAX_MSG_LEN, "📢 Connexion réussie, bienvenue %s !", cmd.arg1);
+                strcpy(msg->username, cmd.arg1);
+                    if (!clientAlreadyExists(*clientList, *((struct client*)&msg->adClient))) {
+                        struct client c;
+                        c.adClient = msg->adClient;
+                        c.port = msg->port;
+                        strcpy(c.username, cmd.arg1);
+                        *clientList = addClient(*clientList, c);
+            }
+            } else if (idx >= 0) {
+                snprintf(response.msg, MAX_MSG_LEN, "Erreur d'authentification.");
+            } else {
+                snprintf(response.msg, MAX_MSG_LEN, "Utilisateur inconnu. Utilisez @create <pseudo> <mdp> pour créer un compte.");
+            }
+            break;
+        }
         default:
             snprintf(response.msg, MAX_MSG_LEN, "Commande inconnue.");
     }
