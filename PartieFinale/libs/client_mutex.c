@@ -5,6 +5,7 @@ pthread_mutex_t udp_socket_mutex;
 pthread_mutex_t file_mutex;
 pthread_mutex_t recv_mutex;
 pthread_mutex_t opcode_mutex;
+pthread_mutex_t display_mutex;
 
 void init_mutexes() {
     pthread_mutex_init(&udp_socket_mutex, 0);

@@ -23,13 +23,12 @@ void* send_thread(void* arg) {
     m.opCode = 1;
     m.port = htons(ctx->aS.sin_port);  // On convertit en port lisible
     m.adClient = ctx->aS;
-
-
     bool continueEnvoie = true;
 
 
     while (continueEnvoie) {
         printf("\n✉️ Entrez un message : ");
+        fflush(stdout);  // Force l'affichage immédiat de l'invite
         scanf(" %[^\n]", m.msg);
 
 
@@ -94,25 +93,23 @@ void* recv_thread(void* arg) {
             usleep(100000); // pause de 100ms
             continue;
         }
-        
-        if (recvfrom(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&from, &fromLen) == -1) {
+          if (recvfrom(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&from, &fromLen) == -1) {
             perror("❌ Erreur recvfrom");
             continueReception = false;
-        }
-        // Vérifier si ce message correspond à un opcode attendu par un autre thread
+        }        // Vérifier si ce message correspond à un opcode attendu par un autre thread
         pthread_mutex_lock(&opcode_mutex);
         if (expected_opcode > 0 && m.opCode == expected_opcode) {
             // C'est un message attendu par un autre thread, le stocker
             expected_msg = m;
             msg_received = 1;
-            pthread_mutex_unlock(&opcode_mutex);
         }
+          // Afficher le message reçu
         if (m.opCode > 8) {
-            printf("%s", m.msg);
+            printf("\n%s\n", m.msg);  // Ajout de retours à la ligne avant et après
         }
-        
         else {
             printf("\n📨 Message reçu de %s : %s\n", m.username, m.msg);
+            
         }
         pthread_mutex_unlock(&opcode_mutex);
     }

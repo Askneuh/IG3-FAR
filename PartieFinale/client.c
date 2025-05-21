@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     ctx.dS = dS;
     ctx.aS = aS;
     ctx.aD = aD;
-
+    memset(ctx.username, 0, MAX_USERNAME_LEN);
 
     struct msgBuffer msg;
     memset(&msg, 0, sizeof(msg));
@@ -70,16 +70,22 @@ int main(int argc, char *argv[]) {
     printf("Pseudo: ");
     fgets(msg.username, MAX_USERNAME_LEN, stdin);
     msg.username[strcspn(msg.username, "\n")] = 0;
+    
+    // Copier le nom d'utilisateur dans le contexte du thread
+    strcpy(ctx.username, msg.username);
+    
     printf("Mot de passe: ");
     fgets(msg.password, MAX_PASSWORD_LEN, stdin);
     msg.password[strcspn(msg.password, "\n")] = 0;
     snprintf(msg.msg, MAX_MSG_LEN, "@connect %s %s", msg.username, msg.password);
     msg.opCode = 0;
+    msg.port = htons(aD.sin_port); // Port du client
+    msg.adClient = aD;
     pthread_mutex_lock(&udp_socket_mutex);
     sendto(dS, &msg, sizeof(msg), 0, (struct sockaddr*)&aS, sizeof(aS));
     pthread_mutex_unlock(&udp_socket_mutex);
     printf("Connexion envoyée, en attente de la réponse du serveur...\n");
-
+    
 
     // Création des threads
     pthread_t sendT, recvT;
