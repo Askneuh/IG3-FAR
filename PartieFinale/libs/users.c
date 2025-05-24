@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <arpa/inet.h>  // For inet_ntop
-#include <netinet/in.h> // For struct sockaddr_in
+#include <arpa/inet.h> 
+#include <netinet/in.h> 
 #define FILENAME "users.txt"
 #define INET_ADDRSTRLEN 16
 int loadUsers(const char* filename, User* users, int* nbUsers) {

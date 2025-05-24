@@ -5,6 +5,7 @@
 #include "message.h"
 #include "client_list.h"
 #include "users.h"
+#include "file_manager.h"
 
 static void cmd_help(struct msgBuffer* msg, int dS) {
     FILE* f = fopen("help.txt", "r");
@@ -32,35 +33,108 @@ static void cmd_ping(struct msgBuffer* msg, int dS) {
     sendMessageToClient(&response, dS, &msg->adClient);
 }
 static void cmd_connect(struct msgBuffer* msg, int dS, User* users, int nbUsers, Command* cmd, ClientNode** clientList) {
+    FileManager* fm = open_file("users.txt", "a+"); // a+ pour lire ET écrire, créer si n'existe pas
+    struct msgBuffer response;
+    memset(&response, 0, sizeof(response));
+    strcpy(response.username, "server");
+    response.adClient = msg->adClient;
+    response.port = msg->port;
+    
+    if (fm) {
+        char* content = read_all(fm);
+        if (content == NULL) {
+            content = strdup("");
+        }
+        
+        char *line = strtok(content, "\n");
+        bool user_exists = false;
+        bool password_correct = false;
+        char username[MAX_USERNAME_LEN];
+        char password[MAX_PASSWORD_LEN]; 
+        
+        // Parcourir le fichier pour chercher l'utilisateur
+        while (line != NULL && !user_exists) {
+            if (sscanf(line, "%49s %49s", username, password) == 2) { 
+                if (strcmp(username, msg->username) == 0) {
+                    user_exists = true;
+                    if (strcmp(password, msg->password) == 0) {
+                        password_correct = true;
+                    }
+                }
+            }
+            line = strtok(NULL, "\n");
+        }
+        
+        if (user_exists) {
+            if (password_correct) {
+                strcpy(response.msg, "Connexion réussie"); 
+                
+                // Ajouter le client à la liste des connectés
+                struct client newClient;
+                strcpy(newClient.username, msg->username);
+                newClient.adClient = msg->adClient;
+                newClient.port = msg->port;
+                newClient.dSClient = dS;
+                
+                // Vérifier qu'il n'est pas déjà dans la liste
+                if (!clientAlreadyExists(*clientList, newClient)) {
+                    *clientList = addClient(*clientList, newClient);
+                    printf("✅ Client %s connecté\n", msg->username);
+                }
+            } else {
+                strcpy(response.msg, "Mot de passe incorrect"); 
+            }
+        } else {
+            close_file(fm); 
+            fm = open_file("users.txt", "a");
+            if (fm) {
+                char new_user_line[256];
+                snprintf(new_user_line, sizeof(new_user_line), "%s %s\n", msg->username, msg->password);
+                write_line(fm, new_user_line); 
+                
+                strcpy(response.msg, "Utilisateur enregistré et connecté"); 
+                
+                struct client newClient;
+                strcpy(newClient.username, msg->username);
+                newClient.adClient = msg->adClient;
+                newClient.port = msg->port;
+                newClient.dSClient = dS;
+                
+                *clientList = addClient(*clientList, newClient);
+                printf("✅ Nouvel utilisateur %s enregistré et connecté\n", msg->username);
+            } else {
+                strcpy(response.msg, "Erreur lors de l'enregistrement");
+            }
+        }
+        
+        free(content);
+        close_file(fm);
+    } else {
+        strcpy(response.msg, "Erreur serveur - fichier utilisateurs");
+    }
+
+    sendMessageToClient(&response, dS, &msg->adClient);
+}
+
+static void cmd_disconnect(struct msgBuffer* msg, int dS, User* users, int nbUsers, Command* cmd, ClientNode** clientList) {
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
 
-    int idx = findUser(users, nbUsers, cmd->arg1);
-    if (idx >= 0 && strcmp(users[idx].password, cmd->arg2) == 0) {
-        strcpy(response.msg, "Connexion réussie !");
-        // Ajouter le client s’il n’est pas déjà présent et pseudo valide
-        if (
-            users[idx].username[0] != '\0' &&
-            strcmp(users[idx].username, "server") != 0 &&
-            users[idx].username[0] >= 32 && users[idx].username[0] <= 126 &&
-            !findClientByName(*clientList, users[idx].username)
-        ) {
-            struct client newClient;
-            strcpy(newClient.username, users[idx].username);
-            newClient.adClient = msg->adClient;  
-            newClient.port = msg->port;
-            newClient.dSClient = dS;
-            *clientList = addClient(*clientList, newClient);
-        }
+    bool client_removed = removeClient(clientList, msg->username);
+
+    if (client_removed) {
+        strcpy(response.msg, "Déconnexion réussie");
+        printf("❌ Client %s déconnecté\n", msg->username);
     } else {
-        strcpy(response.msg, "Identifiants invalides.");
+        strcpy(response.msg, "Client non trouvé dans la liste des connectés");
     }
 
     sendMessageToClient(&response, dS, &msg->adClient);
 }
+
 
 
 static void cmd_credits(struct msgBuffer* msg, int dS) {
@@ -145,6 +219,8 @@ void parseCommand(const char* input, Command* cmd) {
         cmd->type = CMD_PING;
     } else if (strncmp(input, "@credits", 8) == 0) {
         cmd->type = CMD_CREDITS;
+    } else if (strncmp(input, "@disconnect", 11) == 0) {
+        cmd->type = CMD_DISCONNECT;
     } else if (strncmp(input, "@shutdown", 9) == 0) {
         cmd->type = CMD_SHUTDOWN;
     } else if (strncmp(input, "@list", 5) == 0) {
@@ -188,6 +264,9 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
             break;
         case CMD_CONNECT:
             cmd_connect(msg, dS, users, nbUsers, cmd, clientList);
+            break;
+        case CMD_DISCONNECT:
+            cmd_disconnect(msg, dS, users, nbUsers, cmd, clientList);
             break;
         default:
             // Commande inconnue

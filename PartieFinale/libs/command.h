@@ -4,6 +4,7 @@
 #include "message.h"
 #include "client_list.h"
 #include "users.h"
+#include "file_manager.h"
 
 // Enum pour les types de commandes
 typedef enum {
@@ -14,7 +15,8 @@ typedef enum {
     CMD_SHUTDOWN,
     CMD_LIST,
     CMD_CONNECT,
-    CMD_UNKNOWN
+    CMD_UNKNOWN,
+    CMD_DISCONNECT
 } CommandType;
 
 // Structure pour une commande

@@ -88,12 +88,11 @@ void* recv_thread(void* arg) {
     bool continueReception = true;
     
     while (continueReception) {
-        // Si block_recv est actif, attendre un peu et continuer
         if (block_recv) {
             usleep(100000); // pause de 100ms
             continue;
         }
-          if (recvfrom(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&from, &fromLen) == -1) {
+        if (recvfrom(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&from, &fromLen) == -1) {
             perror("❌ Erreur recvfrom");
             continueReception = false;
         }        // Vérifier si ce message correspond à un opcode attendu par un autre thread

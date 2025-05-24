@@ -12,12 +12,42 @@
 #include "client_mutex.h"
 #include "client_threads.h"
 #include "file_handler.h"
+#include <signal.h>
+
 
 #define MAX_USERNAME_LEN 50
 #define MAX_MSG_LEN 512
 #define MAX_PASSWORD_LEN 50
 
+typedef struct {
+    int dS;
+    struct sockaddr_in aS;
+    char username[MAX_USERNAME_LEN];
+    struct sockaddr_in aD;
+} DisconnectInfo;
 
+static DisconnectInfo* disconnect_info = NULL;
+
+// Fonction pour gérer la déconnexion propre
+void handle_disconnect(int sig) {
+    if (disconnect_info != NULL) {
+        struct msgBuffer msg;
+        memset(&msg, 0, sizeof(msg));
+        strcpy(msg.username, disconnect_info->username);
+        strcpy(msg.msg, "@disconnect");
+        msg.opCode = 10; // Code pour déconnexion
+        msg.adClient = disconnect_info->aD;
+        msg.port = disconnect_info->aD.sin_port;
+
+        // Envoyer le message de déconnexion
+        pthread_mutex_lock(&udp_socket_mutex);
+        sendto(disconnect_info->dS, &msg, sizeof(msg), 0, 
+              (struct sockaddr*)&disconnect_info->aS, sizeof(disconnect_info->aS));
+        pthread_mutex_unlock(&udp_socket_mutex);
+
+        printf("\nDéconnexion envoyée au serveur.\n");
+    }
+}
 
 int main(int argc, char *argv[]) {
     init_opcode_mutex();
@@ -39,6 +69,7 @@ int main(int argc, char *argv[]) {
     }
     printf("✅ Socket créée avec succès\n");
 
+
     struct sockaddr_in aD;
     aD.sin_family = AF_INET;
     aD.sin_addr.s_addr = inet_addr(argv[1]);
@@ -55,6 +86,18 @@ int main(int argc, char *argv[]) {
     aS.sin_family = AF_INET;
     aS.sin_addr.s_addr = INADDR_ANY;
     aS.sin_port = htons((short)12345);
+
+    // Préparer les infos pour la déconnexion
+    DisconnectInfo info;
+    info.dS = dS;
+    info.aS = aS;
+    info.aD = aD;
+    memset(info.username, 0, MAX_USERNAME_LEN);
+    disconnect_info = &info;
+
+    // Configurer le gestionnaire de signal APRÈS avoir initialisé disconnect_info
+    signal(SIGINT, handle_disconnect);
+
 
     struct ThreadContext ctx;
     ctx.dS = dS;
@@ -78,8 +121,8 @@ int main(int argc, char *argv[]) {
     fgets(msg.password, MAX_PASSWORD_LEN, stdin);
     msg.password[strcspn(msg.password, "\n")] = 0;
     snprintf(msg.msg, MAX_MSG_LEN, "@connect %s %s", msg.username, msg.password);
-    msg.opCode = 0;
-    msg.port = htons(aD.sin_port); // Port du client
+    msg.opCode = 9;
+    msg.port = htons(aD.sin_port); 
     msg.adClient = aD;
     pthread_mutex_lock(&udp_socket_mutex);
     sendto(dS, &msg, sizeof(msg), 0, (struct sockaddr*)&aS, sizeof(aS));

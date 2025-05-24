@@ -65,30 +65,12 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     c.port = msg->port;
     c.dSClient = dS;
     strcpy(c.username, msg->username); 
-      // On n'ajoute automatiquement que si :
-    // 1. Le client utilise un nom d'utilisateur autre que "anonymous" et "server"
-    // 2. Ce n'est pas une opération de transfert de fichier (opCode 2 ou 6)
-    // 3. Le client n'existe pas déjà dans la liste
-    pthread_mutex_lock(&client_list_mutex);
-    if (strcmp(msg->username, "anonymous") != 0 && 
-        strcmp(msg->username, "server") != 0 &&  // Empêcher l'usurpation du nom "server"
-        msg->opCode != 2 && msg->opCode != 6 && 
-        !clientAlreadyExists(clientList, c)) { 
-        clientList = addClient(clientList, c); 
-        printf("Nouveau client ajouté: %s\n", c.username);
-    }
-    pthread_mutex_unlock(&client_list_mutex);
+    
 
     printf("Message (opcode : %d) reçu de %s : %s\n",msg->opCode, msg->username, msg->msg);
-    printf("Adresse du client : %s:%d\n", inet_ntoa(adrExp.sin_addr), ntohs(adrExp.sin_port));
     if (msg->opCode == 1) {  
         sendMessageToAllClients(clientList, msg, dS); 
     }
-    else if (msg->opCode == 0) {
-        sendMessageToAllClients(clientList, msg, dS);
-    }
-
-
     else if (msg->opCode == 2) { 
         printf("Demande de transfert de fichier reçue de %s\n", msg->username);
         

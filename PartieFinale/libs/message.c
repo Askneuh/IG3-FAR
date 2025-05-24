@@ -8,7 +8,6 @@
 #include "server_com.h"
 #include "server_mutex.h"
 
-// ✅ Envoie un message à un seul client
 int sendMessageToOneClient(struct client client, struct msgBuffer* msg, int serverSocket) {
     socklen_t addrLen = sizeof(struct sockaddr_in);
     pthread_mutex_lock(&client_list_mutex);
@@ -36,7 +35,6 @@ int sendMessageToOneClient(struct client client, struct msgBuffer* msg, int serv
     }
 }
 
-// ✅ Envoie un message à un client à partir de son adresse
 int sendMessageToClient(struct msgBuffer* msg, int serverSocket, struct sockaddr_in* adClient) {
     socklen_t addrLen = sizeof(struct sockaddr_in);
 

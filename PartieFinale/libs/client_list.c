@@ -63,3 +63,33 @@ ClientNode* findClientByName(ClientNode* head, const char* username) {
     }
     return NULL; 
 }
+
+bool removeClient(ClientNode** head, char* username) {
+    if (head == NULL || *head == NULL) {
+        return false;
+    }
+
+    ClientNode* current = *head;
+    ClientNode* prev = NULL;
+
+    if (strcmp(current->data.username, username) == 0) {
+        *head = current->next;
+        free(current);
+        return true;
+    }
+
+    while (current != NULL && strcmp(current->data.username, username) != 0) {
+        prev = current;
+        current = current->next;
+    }
+
+    if (current != NULL) {
+        prev->next = current->next;
+        free(current);
+        return true;
+    }
+
+    return false;
+}
+
+

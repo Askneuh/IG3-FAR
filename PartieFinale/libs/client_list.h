@@ -20,6 +20,7 @@ typedef struct ClientNode {
 
 // Fonctions disponibles pour d'autres fichiers
 ClientNode* addClient(ClientNode* head, struct client newClient);
+bool removeClient(ClientNode** head, char* username);
 void printClients(ClientNode* head);
 void freeClients(ClientNode* head);
 bool clientAlreadyExists(ClientNode* head, struct client c);
