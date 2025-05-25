@@ -14,7 +14,6 @@
 #include "server_mutex.h"
 #include "server_com.h"
 #include "command.h"
-#include "users.h"
 #include "message.h"
 
 
@@ -45,9 +44,7 @@ int main(int argc, char* argv[]) {
 
     ClientNode* clientList = NULL;
 
-    User users[MAX_USERS];
-    int nbUsers = 0;
-    loadUsers("users.txt", users, &nbUsers);
+    
 
 
 
@@ -56,7 +53,7 @@ int main(int argc, char* argv[]) {
     bool continueReceiving = true;
     while(continueReceiving) {
         printf("En attente de message...\n");
-        clientList = ReceiveMessage(dS, msg, clientList, users, nbUsers, adServeur); 
+        clientList = ReceiveMessage(dS, msg, clientList, adServeur); 
         pthread_mutex_lock(&client_list_mutex);
         printf("Liste des clients:\n");
         printClients(clientList);

@@ -12,6 +12,6 @@
 #ifndef SERVER_COM_H
 #define SERVER_COM_H
 
-ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, User* users, int nbUsers, struct sockaddr_in adServeur);
+ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, struct sockaddr_in adServeur);
 int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket);
 #endif // SERVER_COM_H
