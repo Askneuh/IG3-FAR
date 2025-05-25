@@ -92,4 +92,14 @@ bool removeClient(ClientNode** head, char* username) {
     return false;
 }
 
+int countClients(ClientNode* head) {
+    int count = 0;
+    while (head != NULL) {
+        count++;
+        head = head->next;
+    }
+    return count;
+}
+
+
 
