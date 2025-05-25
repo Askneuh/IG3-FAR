@@ -103,12 +103,15 @@ void* recv_thread(void* arg) {
             msg_received = 1;
         }
           // Afficher le message reçu
-        if (m.opCode == 8) {
-            printf("\n%s\n", m.msg);  // Ajout de retours à la ligne avant et après
+        
+        else if (m.opCode == 8) {
+            printf("\n notification serveur : %s\n ", m.msg);
+        }
+        else if (m.opCode == 7){
+            printf("\n 📨 Message reçu de %s provenant de votre salon salon : %s\n", m.username, m.msg);
         }
         else {
-            printf("\n📨 Message reçu de %s : %s\n", m.username, m.msg);
-            
+            printf("\n 📨 Message reçu de %s du chat commun : %s\n", m.username, m.msg);
         }
         pthread_mutex_unlock(&opcode_mutex);
     }
