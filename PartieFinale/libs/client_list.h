@@ -25,4 +25,5 @@ void printClients(ClientNode* head);
 void freeClients(ClientNode* head);
 bool clientAlreadyExists(ClientNode* head, struct client c);
 ClientNode* findClientByName(ClientNode* head, const char* username);
+int countClients(ClientNode* head);
 #endif // CLIENT_LIST_H
