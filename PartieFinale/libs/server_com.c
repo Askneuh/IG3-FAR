@@ -13,42 +13,11 @@
 #include <pthread.h>
 #include "server_mutex.h"
 #include "server_com.h"
-#include "users.h"
 #include "command.h"
 #include "message.h"
 
-int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket) {
-    pthread_mutex_lock(&client_list_mutex);
-    ClientNode* current = clientList;
-    int successCount = 0;
-    int errorCount = 0;
-    
-    while (current != NULL) {
-        // Ne pas envoyer au client qui a émis le message
-        if (!(current->data.adClient.sin_addr.s_addr == msg->adClient.sin_addr.s_addr &&
-            current->data.adClient.sin_port == msg->adClient.sin_port)) { 
-            socklen_t addrLen = sizeof(struct sockaddr_in);
-            int result = sendto(serverSocket, msg, sizeof(struct msgBuffer), 0, 
-                               (struct sockaddr*)&current->data.adClient, addrLen);
-            
-            if (result == -1) {
-                perror("Erreur lors de l'envoi du message");
-                errorCount++;
-            } else {
-                successCount++;
-                printf("Message transmis à %s\n", current->data.username);
-            }
-        }
-        current = current->next;
-    }
-    pthread_mutex_unlock(&client_list_mutex);
-    
-    printf("Message diffusé à %d clients (%d erreurs)\n", successCount, errorCount);
-    return successCount;
-}
 
-
-ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, User* users, int nbUsers, struct sockaddr_in adServeur) {
+ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList, struct sockaddr_in adServeur) {
     struct sockaddr_in adrExp;
     socklen_t adrExpLen = sizeof(adrExp);
     pthread_mutex_lock(&udp_socket_mutex);
@@ -293,11 +262,15 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         }
         return clientList;
     } 
-    else if (msg->opCode > 8) {
-        Command cmd;
-        parseCommand(msg->msg, &cmd);
-        traiterCommande(&cmd, msg, dS, &clientList, users, nbUsers);
-    } 
+    else if (msg->opCode == 8) { //pour les autres commandes
+    Command cmd;
+    parseCommand(msg->msg, &cmd);
+    
+    msg->adClient = adrExp;
+    msg->port = adrExp.sin_port;
+    
+    traiterCommande(&cmd, msg, dS, &clientList);
+}
 
     return clientList; 
 }

@@ -35,6 +35,38 @@ int sendMessageToOneClient(struct client client, struct msgBuffer* msg, int serv
     }
 }
 
+int sendMessageToAllClients(ClientNode* clientList, struct msgBuffer* msg, int serverSocket) {
+    ClientNode* current = clientList;
+    int successCount = 0;
+    int errorCount = 0;
+
+    while (current != NULL) {
+        struct client cible = current->data;
+
+        // ❌ Exclure l'émetteur
+        if (cible.adClient.sin_addr.s_addr == msg->adClient.sin_addr.s_addr &&
+            cible.adClient.sin_port == msg->adClient.sin_port) {
+            current = current->next;
+            continue;
+        }
+        printf("🔁 Message ignoré pour l'émetteur %s\n", cible.username);
+
+
+        int result = sendMessageToOneClient(cible, msg, serverSocket);
+        if (result == -1) {
+            errorCount++;
+        } else {
+            successCount++;
+        }
+
+        current = current->next;
+    }
+
+    printf("📢 Message global envoyé à %d clients (%d erreurs)\n", successCount, errorCount);
+    return successCount;
+}
+
+
 int sendMessageToClient(struct msgBuffer* msg, int serverSocket, struct sockaddr_in* adClient) {
     socklen_t addrLen = sizeof(struct sockaddr_in);
 

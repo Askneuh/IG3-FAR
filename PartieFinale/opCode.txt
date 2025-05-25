@@ -3,7 +3,7 @@
 2 : Demande de transfert de fichier client -> server (upload)
 3 : 
 4 :
-5 :
+5 : pour le message de port TCP
 6 : Demande de transfert de fichier client -> server (download)
 7 :
 8 :

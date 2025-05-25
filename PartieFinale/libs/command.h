@@ -3,7 +3,6 @@
 
 #include "message.h"
 #include "client_list.h"
-#include "users.h"
 #include "file_manager.h"
 
 // Enum pour les types de commandes
@@ -27,7 +26,7 @@ typedef struct {
 } Command;
 
 // Prototype de la fonction centrale
-void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, User* users, int nbUsers);
+void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList);
 
 // Prototype pour parser une commande 
 void parseCommand(const char* input, Command* cmd);

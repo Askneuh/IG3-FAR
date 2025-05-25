@@ -59,7 +59,7 @@ void* send_thread(void* arg) {
         }
         else if (m.msg[0] == '@') {
            // Cas 4 : commande autre que upload/download
-           m.opCode = 9; // ou la valeur attendue pour une commande
+           m.opCode = 8; // ou la valeur attendue pour une commande
            pthread_mutex_lock(&udp_socket_mutex);
            if (sendto(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&ctx->aS, sizeof(ctx->aS)) == -1) {
                perror("❌ Erreur sendto");
@@ -103,7 +103,7 @@ void* recv_thread(void* arg) {
             msg_received = 1;
         }
           // Afficher le message reçu
-        if (m.opCode > 8) {
+        if (m.opCode == 8) {
             printf("\n%s\n", m.msg);  // Ajout de retours à la ligne avant et après
         }
         else {

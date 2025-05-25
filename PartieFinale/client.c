@@ -28,14 +28,13 @@ typedef struct {
 
 static DisconnectInfo* disconnect_info = NULL;
 
-// Fonction pour gérer la déconnexion propre
-void handle_disconnect(int sig) {
+/*void handle_disconnect(int sig) {
     if (disconnect_info != NULL) {
         struct msgBuffer msg;
         memset(&msg, 0, sizeof(msg));
         strcpy(msg.username, disconnect_info->username);
         strcpy(msg.msg, "@disconnect");
-        msg.opCode = 10; // Code pour déconnexion
+        msg.opCode = 8; // Code pour déconnexion
         msg.adClient = disconnect_info->aD;
         msg.port = disconnect_info->aD.sin_port;
 
@@ -48,6 +47,7 @@ void handle_disconnect(int sig) {
         printf("\nDéconnexion envoyée au serveur.\n");
     }
 }
+    */
 
 int main(int argc, char *argv[]) {
     init_opcode_mutex();
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     aS.sin_family = AF_INET;
     aS.sin_addr.s_addr = INADDR_ANY;
     aS.sin_port = htons((short)12345);
-
+    /*
     // Préparer les infos pour la déconnexion
     DisconnectInfo info;
     info.dS = dS;
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 
     // Configurer le gestionnaire de signal APRÈS avoir initialisé disconnect_info
     signal(SIGINT, handle_disconnect);
-
+    */
 
     struct ThreadContext ctx;
     ctx.dS = dS;
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
     fgets(msg.password, MAX_PASSWORD_LEN, stdin);
     msg.password[strcspn(msg.password, "\n")] = 0;
     snprintf(msg.msg, MAX_MSG_LEN, "@connect %s %s", msg.username, msg.password);
-    msg.opCode = 9;
+    msg.opCode = 8;
     msg.port = htons(aD.sin_port); 
     msg.adClient = aD;
     pthread_mutex_lock(&udp_socket_mutex);

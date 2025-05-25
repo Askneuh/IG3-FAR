@@ -32,7 +32,7 @@ static void cmd_ping(struct msgBuffer* msg, int dS) {
     response.port = msg->port;
     sendMessageToClient(&response, dS, &msg->adClient);
 }
-static void cmd_connect(struct msgBuffer* msg, int dS, User* users, int nbUsers, Command* cmd, ClientNode** clientList) {
+static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode** clientList) {
     FileManager* fm = open_file("users.txt", "a+"); // a+ pour lire ET écrire, créer si n'existe pas
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
@@ -54,7 +54,8 @@ static void cmd_connect(struct msgBuffer* msg, int dS, User* users, int nbUsers,
         
         // Parcourir le fichier pour chercher l'utilisateur
         while (line != NULL && !user_exists) {
-            if (sscanf(line, "%49s %49s", username, password) == 2) { 
+            int dummy_admin_flag;
+            if (sscanf(line, "%49s %49s %d", username, password, &dummy_admin_flag) >= 2) {
                 if (strcmp(username, msg->username) == 0) {
                     user_exists = true;
                     if (strcmp(password, msg->password) == 0) {
@@ -89,7 +90,7 @@ static void cmd_connect(struct msgBuffer* msg, int dS, User* users, int nbUsers,
             fm = open_file("users.txt", "a");
             if (fm) {
                 char new_user_line[256];
-                snprintf(new_user_line, sizeof(new_user_line), "%s %s\n", msg->username, msg->password);
+                snprintf(new_user_line, sizeof(new_user_line), "%s %s %s\n", msg->username, msg->password, "0");
                 write_line(fm, new_user_line); 
                 
                 strcpy(response.msg, "Utilisateur enregistré et connecté"); 
@@ -116,7 +117,7 @@ static void cmd_connect(struct msgBuffer* msg, int dS, User* users, int nbUsers,
     sendMessageToClient(&response, dS, &msg->adClient);
 }
 
-static void cmd_disconnect(struct msgBuffer* msg, int dS, User* users, int nbUsers, Command* cmd, ClientNode** clientList) {
+static void cmd_disconnect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode** clientList) {
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
@@ -152,8 +153,8 @@ static void cmd_credits(struct msgBuffer* msg, int dS) {
     }
     sendMessageToClient(&response, dS, &msg->adClient);
 }
-
-static void cmd_shutdown(struct msgBuffer* msg, int dS, User* users, int nbUsers) {
+/*
+static void cmd_shutdown(struct msgBuffer* msg, int dS) {
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
@@ -170,6 +171,7 @@ static void cmd_shutdown(struct msgBuffer* msg, int dS, User* users, int nbUsers
         sendMessageToClient(&response, dS, &msg->adClient);
     }
 }
+    */
 
 static void cmd_msg(struct msgBuffer* msg, int dS, ClientNode* clientList, Command* cmd) {
     struct msgBuffer response;
@@ -242,7 +244,7 @@ void parseCommand(const char* input, Command* cmd) {
 }
 
 // Fonction centrale
-void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, User* users, int nbUsers) {
+void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList) {
     switch (cmd->type) {
         case CMD_HELP:
             cmd_help(msg, dS);
@@ -253,9 +255,9 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
         case CMD_CREDITS:
             cmd_credits(msg, dS);
             break;
-        case CMD_SHUTDOWN:
-            cmd_shutdown(msg, dS, users, nbUsers);
-            break;
+        //case CMD_SHUTDOWN:
+            //cmd_shutdown(msg, dS);
+            //break;
         case CMD_MSG:
             cmd_msg(msg, dS, *clientList, cmd);
             break;
@@ -263,10 +265,10 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
             cmd_list(msg, dS, *clientList);
             break;
         case CMD_CONNECT:
-            cmd_connect(msg, dS, users, nbUsers, cmd, clientList);
+            cmd_connect(msg, dS, cmd, clientList);
             break;
         case CMD_DISCONNECT:
-            cmd_disconnect(msg, dS, users, nbUsers, cmd, clientList);
+            cmd_disconnect(msg, dS, cmd, clientList);
             break;
         default:
             // Commande inconnue
