@@ -1,4 +1,3 @@
-salma motdepasse1 0
-seb motdepasse2 0
-matteo motdepasse3 0
-admin motdepasse0 1
+seb salut 0
+seb lala 0
+seb dsflkdsfodsnf 0

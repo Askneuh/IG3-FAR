@@ -1,28 +1,33 @@
 #ifndef COMMAND_H
 #define COMMAND_H
 
-#define MAX_CMD_LEN 32
-#define MAX_ARG_LEN 128
+#include "message.h"
+#include "client_list.h"
+#include "users.h"
 
+// Enum pour les types de commandes
 typedef enum {
     CMD_HELP,
     CMD_PING,
     CMD_MSG,
     CMD_CREDITS,
     CMD_SHUTDOWN,
-    CMD_CONNECT,
     CMD_LIST,
-    CMD_CREATE,
+    CMD_CONNECT,
     CMD_UNKNOWN
 } CommandType;
 
+// Structure pour une commande
 typedef struct {
     CommandType type;
-    char arg1[MAX_ARG_LEN];
-    char arg2[MAX_ARG_LEN];
+    char arg1[64]; // Premier argument (ex: nom utilisateur)
+    char arg2[256]; // Deuxième argument (ex: message)
 } Command;
 
-Command parseCommand(const char* msg);
-const char* commandTypeToString(CommandType type);
+// Prototype de la fonction centrale
+void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, User* users, int nbUsers);
+
+// Prototype pour parser une commande 
+void parseCommand(const char* input, Command* cmd);
 
 #endif

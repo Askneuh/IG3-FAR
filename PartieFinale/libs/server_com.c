@@ -58,22 +58,25 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         close(dS);
         exit(EXIT_FAILURE);
     }
-    pthread_mutex_unlock(&udp_socket_mutex);
-
+    pthread_mutex_unlock(&udp_socket_mutex);    
+    
     struct client c;
     c.adClient = adrExp;
     c.port = msg->port;
     c.dSClient = dS;
     strcpy(c.username, msg->username); 
-    
-
+      // On n'ajoute automatiquement que si :
+    // 1. Le client utilise un nom d'utilisateur autre que "anonymous" et "server"
+    // 2. Ce n'est pas une opération de transfert de fichier (opCode 2 ou 6)
+    // 3. Le client n'existe pas déjà dans la liste
     pthread_mutex_lock(&client_list_mutex);
-
-    if (!clientAlreadyExists(clientList, c)) { 
+    if (strcmp(msg->username, "anonymous") != 0 && 
+        strcmp(msg->username, "server") != 0 &&  // Empêcher l'usurpation du nom "server"
+        msg->opCode != 2 && msg->opCode != 6 && 
+        !clientAlreadyExists(clientList, c)) { 
         clientList = addClient(clientList, c); 
         printf("Nouveau client ajouté: %s\n", c.username);
     }
-
     pthread_mutex_unlock(&client_list_mutex);
 
     printf("Message (opcode : %d) reçu de %s : %s\n",msg->opCode, msg->username, msg->msg);
@@ -81,6 +84,10 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
     if (msg->opCode == 1) {  
         sendMessageToAllClients(clientList, msg, dS); 
     }
+    else if (msg->opCode == 0) {
+        sendMessageToAllClients(clientList, msg, dS);
+    }
+
 
     else if (msg->opCode == 2) { 
         printf("Demande de transfert de fichier reçue de %s\n", msg->username);
@@ -304,122 +311,12 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         }
         return clientList;
     } 
-     else if (msg->opCode > 8) {  
-        // Commandes/chat
-        Command cmd = parseCommand(msg->msg);
-        if (cmd.type != CMD_UNKNOWN) {
-            handleCommand(cmd, msg, dS, &clientList, users, nbUsers, adrExp);
-        } else {
-            sendMessageToAllClients(clientList, msg, dS); 
-        }
-    }
-    else {
-        printf("OpCode inconnu: %d\n", msg->opCode);
-    }
+    else if (msg->opCode > 8) {
+        Command cmd;
+        parseCommand(msg->msg, &cmd);
+        traiterCommande(&cmd, msg, dS, &clientList, users, nbUsers);
+    } 
+
     return clientList; 
 }
 
-void handleCommand(Command cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, User* users, int nbUsers, struct sockaddr_in adrExp) {
-    struct msgBuffer response;
-    memset(&response, 0, sizeof(response));
-    strcpy(response.username, "server");
-    response.adClient = msg->adClient;
-    response.port = msg->port;
-    response.opCode = 9; // OpCode pour le message de réponse aux commandes
-
-    switch (cmd.type) {
-        case CMD_HELP:
-            strcpy(response.msg, "Commandes: @help, @ping, @msg <user> <msg>, @credits, @shutdown, @connect <login> <mdp>");
-            //snprintf(response.msg, MAX_MSG_LEN, "Commandes: @help, @ping, @msg <user> <msg>, @credits, @shutdown, @connect <login> <mdp>");
-            break;
-        case CMD_PING:
-            //snprintf(response.msg, MAX_MSG_LEN, "pong");
-            strcpy(response.msg, "pong");
-            break;
-        case CMD_CREDITS:
-            //snprintf(response.msg, MAX_MSG_LEN, "Projet Chat UDP - 2025");
-            strcpy(response.msg, "Projet Chat UDP - 2025");
-            break;
-        case CMD_SHUTDOWN:
-            snprintf(response.msg, MAX_MSG_LEN, "Serveur en cours d'arrêt...");
-            sendMessageToClient(&response, dS, &msg->adClient);
-            exit(0);
-            break;
-        case CMD_CONNECT: {
-            int idx = findUser(users, nbUsers, cmd.arg1);
-            if (idx >= 0 && checkPassword(users, idx, cmd.arg2)) {
-                snprintf(response.msg, MAX_MSG_LEN, "📢 Connexion réussie, bienvenue %s !", cmd.arg1);
-                strcpy(msg->username, cmd.arg1);
-                if (!clientAlreadyExists(*clientList, *((struct client*)&adrExp))) {
-                    struct client c;
-                    c.adClient = adrExp;
-                    c.port = ntohs(adrExp.sin_port);
-                    strcpy(c.username, cmd.arg1);
-                    *clientList = addClient(*clientList, c);
-                }
-            } else if (idx >= 0) {
-                snprintf(response.msg, MAX_MSG_LEN, "Erreur d'authentification.");
-            } else {
-                snprintf(response.msg, MAX_MSG_LEN, "Utilisateur inconnu. Utilisez @create <pseudo> <mdp> pour créer un compte.");
-            }
-            break;
-        }
-        case CMD_MSG: {
-            // Message privé
-            ClientNode* dest = findClientByName(*clientList, cmd.arg1);
-            if (dest) {
-                snprintf(response.msg, MAX_MSG_LEN, "[privé de %s]: %s", msg->username, cmd.arg2);
-                sendMessageToClient(&response, dS, &dest->data.adClient);
-                snprintf(response.msg, MAX_MSG_LEN, "Message privé envoyé à %s.", cmd.arg1);
-            } else {
-                snprintf(response.msg, MAX_MSG_LEN, "Utilisateur %s introuvable.", cmd.arg1);
-            }
-            break;
-        }
-        case CMD_LIST: {
-            // Affiche la liste des utilisateurs connectés
-            char liste[MAX_MSG_LEN] = "Utilisateurs connectés :";
-            ClientNode* cur = *clientList;
-            while (cur) {
-                strcat(liste, " ");
-                strcat(liste, cur->data.username);
-                cur = cur->next;
-            }
-            snprintf(response.msg, MAX_MSG_LEN, "%s", liste);
-            break;
-        }
-       case CMD_CREATE: {
-            int idx = findUser(users, nbUsers, cmd.arg1);
-            if (idx >= 0) {
-                snprintf(response.msg, MAX_MSG_LEN, "Ce pseudo existe déjà.");
-            } else {
-            // Ajout dans users.txt
-                FILE* f = fopen("users.txt", "a");
-                if (f) {
-                    fprintf(f, "%s %s\n", cmd.arg1, cmd.arg2);
-                    fclose(f);
-                    snprintf(response.msg, MAX_MSG_LEN, "Compte créé, bienvenue %s !", cmd.arg1);
-                    // Ajout dans la liste en mémoire
-                    strcpy(users[nbUsers].username, cmd.arg1);
-                    strcpy(users[nbUsers].password, cmd.arg2);
-                    nbUsers++;
-                    // Ajout dans la liste des clients connectés
-                    if (!clientAlreadyExists(*clientList, *((struct client*)&adrExp))) {
-                        struct client c;
-                        c.adClient = adrExp;
-                        c.port = ntohs(adrExp.sin_port);
-                        strcpy(c.username, cmd.arg1);
-                        *clientList = addClient(*clientList, c);
-                    }
-                } else {
-                    snprintf(response.msg, MAX_MSG_LEN, "Erreur lors de la création du compte.");
-                }
-            }
-            break;
-        }
-        default:
-            snprintf(response.msg, MAX_MSG_LEN, "Commande inconnue.");
-    }
-    printf("envoie avec le opCode %d\n", response.opCode);
-    sendMessageToClient(&response, dS, &adrExp);
-}
