@@ -6,6 +6,7 @@
 #include "client_list.h"
 #include "file_manager.h"
 #include "salon.h"
+#include <signal.h>
 
 static void cmd_help(struct msgBuffer* msg, int dS) {
     FILE* f = fopen("help.txt", "r");
@@ -73,14 +74,12 @@ static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode*
             if (password_correct) {
                 strcpy(response.msg, "Connexion réussie"); 
                 
-                // Ajouter le client à la liste des connectés
                 struct client newClient;
                 strcpy(newClient.username, msg->username);
                 newClient.adClient = msg->adClient;
                 newClient.port = msg->port;
                 newClient.dSClient = dS;
                 
-                // Vérifier qu'il n'est pas déjà dans la liste
                 if (!clientAlreadyExists(*clientList, newClient)) {
                     *clientList = addClient(*clientList, newClient);
                     printf("✅ Client %s connecté\n", msg->username);
@@ -119,7 +118,7 @@ static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode*
 
     sendMessageToClient(&response, dS, &msg->adClient);
 }
-
+//commande non demandée, aucune utilisation concrète
 static void cmd_disconnect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode** clientList) {
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
@@ -158,25 +157,23 @@ static void cmd_credits(struct msgBuffer* msg, int dS) {
     }
     sendMessageToClient(&response, dS, &msg->adClient);
 }
-/*
+
 static void cmd_shutdown(struct msgBuffer* msg, int dS) {
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
-    // Vérifier si l'utilisateur est admin
-    int idx = findUser(users, nbUsers, msg->username);
-    if (idx >= 0 && users[idx].is_admin) {
-        strcpy(response.msg, "Serveur en cours d'arrêt...");
-        sendMessageToClient(&response, dS, &msg->adClient);
-        exit(0);
-    } else {
-        strcpy(response.msg, "Commande réservée à l'admin.");
-        sendMessageToClient(&response, dS, &msg->adClient);
-    }
+    response.opCode = 3;
+    
+    strcpy(response.msg, "🔴 Arrêt du serveur en cours...");
+    sendMessageToClient(&response, dS, &msg->adClient);
+    
+    printf("🔴 Commande shutdown reçue de %s\n", msg->username);
+    
+    // Envoyer le signal SIGTERM au processus pour déclencher l'arrêt
+    raise(SIGTERM);
 }
-    */
 
 static void cmd_msg(struct msgBuffer* msg, int dS, ClientNode* clientList, Command* cmd) {
     struct msgBuffer response;
@@ -248,7 +245,7 @@ static void cmd_who(struct msgBuffer* msg, int dS, struct client c) {
 }
 
 static void cmd_join(int dS, char* arg1, struct msgBuffer* msg, struct client c) {
-    char *nomSalon;
+    char nomSalon[64];
     strcpy(nomSalon, arg1);
 
     struct msgBuffer response;
@@ -473,9 +470,9 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
         case CMD_CREDITS:
             cmd_credits(msg, dS);
             break;
-        //case CMD_SHUTDOWN:
-            //cmd_shutdown(msg, dS);
-            //break;
+        case CMD_SHUTDOWN:
+            cmd_shutdown(msg, dS);
+            break;
         case CMD_MSG:
             cmd_msg(msg, dS, *clientList, cmd);
             break;

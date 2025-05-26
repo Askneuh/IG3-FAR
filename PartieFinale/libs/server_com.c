@@ -170,7 +170,6 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
         msg->port = adrExp.sin_port;
 
         traiterCommande(&cmd, msg, dS, &clientList, c);
-        sauvegarderSalons();
     }
 
     else if (msg->opCode == 6) { 

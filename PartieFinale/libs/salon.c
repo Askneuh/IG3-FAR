@@ -140,7 +140,7 @@ char* trouverSalonDuClient(struct client c) {
  * Sauvegarde la liste des salons (leurs noms) dans SAVE_FILE.
  * Uniquement **une** définition ici.
  */
-void sauvegarderSalons(void) {
+void sauvegarderSalons() {
     printf("📂 Sauvegarde des salons et de leurs membres dans \"%s\"…\n", SAVE_FILE);
     FILE *f = fopen(SAVE_FILE, "w");
     if (!f) {
@@ -165,7 +165,7 @@ void sauvegarderSalons(void) {
 }
 
 
-void chargerSalons(void) {
+void chargerSalons() {
     printf("📂 Chargement des salons et de leurs membres depuis \"%s\"…\n", SAVE_FILE);
     FILE *f = fopen(SAVE_FILE, "r");
     if (!f) {

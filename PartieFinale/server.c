@@ -15,17 +15,31 @@
 #include "server_com.h"
 #include "command.h"
 #include "message.h"
+#include <signal.h>
+#include "salon.h"
 
 
 #define MAX_USERNAME_LEN 50
 #define MAX_MSG_LEN 512
 #define MAX_USERS 100
 
+static bool continueReceiving = true;
+
+void shutdown_handler(int sig) {
+    printf("\n🔴 Arrêt du serveur demandé...\n");
+    sauvegarderSalons();
+    continueReceiving = false;  // Arrêter la boucle
+}
 
 
 int main(int argc, char* argv[]) {
+
+    signal(SIGTERM, shutdown_handler);
+    signal(SIGINT, shutdown_handler);
     
     init_server_mutexes();
+
+    chargerSalons();
 
     int dS = socket(AF_INET, SOCK_DGRAM, 0); 
     if (dS == -1) {
@@ -44,13 +58,7 @@ int main(int argc, char* argv[]) {
 
     ClientNode* clientList = NULL;
 
-    
-
-
-
-
     struct msgBuffer* msg = malloc(sizeof(struct msgBuffer)); 
-    bool continueReceiving = true;
     while(continueReceiving) {
         printf("En attente de message...\n");
         clientList = ReceiveMessage(dS, msg, clientList, adServeur); 

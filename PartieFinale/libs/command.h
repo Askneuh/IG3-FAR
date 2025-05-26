@@ -5,7 +5,6 @@
 #include "client_list.h"
 #include "file_manager.h"
 
-// Enum pour les types de commandes
 typedef enum {
     CMD_HELP,
     CMD_PING,
@@ -23,17 +22,14 @@ typedef enum {
     CMD_CREATE
 } CommandType;
 
-// Structure pour une commande
 typedef struct {
     CommandType type;
-    char arg1[64]; // Premier argument (ex: nom utilisateur)
-    char arg2[256]; // Deuxième argument (ex: message)
+    char arg1[64]; 
+    char arg2[256]; 
 } Command;
 
-// Prototype de la fonction centrale
 void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, struct client c);
 
-// Prototype pour parser une commande 
 void parseCommand(const char* input, Command* cmd);
 
 #endif
