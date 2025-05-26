@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include "message.h"
 #include "client_list.h"
-#include "users.h"
 #include "file_manager.h"
+#include "salon.h"
 
 static void cmd_help(struct msgBuffer* msg, int dS) {
     FILE* f = fopen("help.txt", "r");
@@ -217,6 +217,198 @@ static void cmd_list(struct msgBuffer* msg, int dS, ClientNode* clientList) {
     snprintf(response.msg, MAX_MSG_LEN, "%s", liste);
     sendMessageToClient(&response, dS, &msg->adClient);
 }
+static void cmd_who(struct msgBuffer* msg, int dS, struct client c) {
+    struct msgBuffer response;
+    response.opCode = 3;
+    strcpy(response.username, "Serveur");
+
+    char* nomSalon = trouverSalonDuClient(c);
+    if (nomSalon == NULL) {
+        strcpy(response.msg, "❌ Tu n'es dans aucun salon.");
+    } else {
+        int idx = salonExiste(nomSalon);
+        if (idx == -1) {
+            strcpy(response.msg, "❌ Salon introuvable.");
+        } else {
+            Salon s = salons[idx];
+            char info[512] = "";
+            snprintf(info, sizeof(info), "👥 Membres du salon \"%s\" :\n", s.nom);
+            ClientNode* current = salons[idx].clients;
+            while (current != NULL) {
+                strcat(info, " - ");
+                strcat(info, current->data.username);
+                strcat(info, "\n");
+                current = current->next;
+            }
+
+            strcpy(response.msg, info);
+        }
+    }
+    sendMessageToClient(&response, dS, &msg->adClient);
+}
+
+static void cmd_join(int dS, char* arg1, struct msgBuffer* msg, struct client c) {
+    char *nomSalon;
+    strcpy(nomSalon, arg1);
+
+    struct msgBuffer response;
+    response.opCode = 3;
+    response.adClient = c.adClient;
+    strcpy(response.username, "Serveur");
+
+    // 🔎 Vérifier si le client est déjà dans un salon
+    char* salonActuel = trouverSalonDuClient(c);
+    if (salonActuel != NULL && strcmp(salonActuel, nomSalon) != 0) {
+        // ✅ Le client est dans un autre salon → on le retire
+        retirerClientDuSalon(salonActuel, c);
+
+        // 📢 Notifier les autres
+        struct msgBuffer notifLeave;
+        notifLeave.opCode = 3;
+        notifLeave.adClient = c.adClient;
+        strcpy(notifLeave.username, "Serveur");
+        snprintf(notifLeave.msg, sizeof(notifLeave.msg), "📢 %s a quitté le salon \"%s\".", c.username, salonActuel);
+        int idxLeave = salonExiste(salonActuel);
+        if (idxLeave != -1) {
+            envoyerMessageAListe(salons[idxLeave].clients, &notifLeave, dS, &c);
+
+        }
+    }
+
+    // 🔁 Continuer avec la logique join
+    int idx = salonExiste(nomSalon);
+    if (idx == -1) {
+        strcpy(response.msg, "❌ Salon introuvable.");
+        sendMessageToClient(&response, dS, &msg->adClient);
+    } else {
+        int result = ajouterClientAuSalon(nomSalon, c);
+        if (result == 0) {
+            sprintf(response.msg, "✅ Tu as rejoint le salon \"%s\".", nomSalon);
+            sendMessageToClient(&response, dS, &msg->adClient);
+
+            // ✅ Notifier les autres
+            struct msgBuffer notif;
+            notif.opCode = 3;
+            notif.adClient = c.adClient;
+            strcpy(notif.username, "Serveur");
+            snprintf(notif.msg, sizeof(notif.msg), "📢 %s a rejoint le salon \"%s\".", c.username, nomSalon);
+            envoyerMessageAListe(salons[idx].clients, &notif, dS, &c);
+        } else if (result == -2) {
+            sprintf(response.msg, "⚠️ Tu es déjà dans le salon \"%s\".", nomSalon);
+            sendMessageToClient(&response, dS, &msg->adClient);
+        } else {
+            sprintf(response.msg, "❌ Impossible de rejoindre \"%s\" (plein ?).", nomSalon);
+            sendMessageToClient(&response, dS, &msg->adClient);
+        }
+    }
+}
+static void cmd_info(int dS, struct client c, struct msgBuffer* msg) {
+    char *nomSalon = msg->msg + 6;
+    int idx = salonExiste(nomSalon);
+    struct msgBuffer response;
+    response.opCode = 3;
+    response.adClient = c.adClient;
+    strcpy(response.username, "Serveur");
+    if (idx == -1) {
+        strcpy(response.msg, "❌ Salon introuvable.");
+    } else {sendMessageToClient(&response, dS, &msg->adClient);
+
+        Salon s = salons[idx];
+        char info[512] = "";
+        sprintf(info, "📂 Salon \"%s\" (%d membres):\n", s.nom, countClients(s.clients)
+    );
+        ClientNode* current = salons[idx].clients;
+        while (current != NULL) {
+            strcat(info, " - ");
+            strcat(info, current->data.username);
+            strcat(info, "\n");
+            current = current->next;
+        }
+
+        strcpy(response.msg, info);
+    }
+
+    sendMessageToClient(&response, dS, &msg->adClient);
+}
+
+static void cmd_leave(int dS, struct client c, struct msgBuffer* msg) {
+    char* nomSalon = trouverSalonDuClient(c);
+
+    struct msgBuffer response;
+    response.opCode = 3;
+    response.adClient = c.adClient;
+    strcpy(response.username, "Serveur");
+
+    if (nomSalon == NULL) {
+        strcpy(response.msg, "❌ Tu n'es dans aucun salon.");
+        sendMessageToClient(&response, dS, &msg->adClient);
+    } else {
+        // ✅ Retirer le client
+        retirerClientDuSalon(nomSalon, c);
+
+        // ✅ Message au client
+        sprintf(response.msg, "✅ Tu as quitté le salon \"%s\".", nomSalon);
+        sendMessageToClient(&response, dS, &msg->adClient);
+
+        // ✅ Notifier les autres
+        struct msgBuffer notif;
+        notif.opCode = 3;
+        notif.adClient = c.adClient;
+        strcpy(notif.username, "Serveur");
+        snprintf(notif.msg, sizeof(notif.msg), "📢 %s a quitté le salon \"%s\".", c.username, nomSalon);
+
+        int idx = salonExiste(nomSalon);
+        if (idx != -1) {
+            envoyerMessageAListe(salons[idx].clients, &notif, dS, &c);
+        }
+    }
+}
+
+static void cmd_create(int dS, char* arg1, struct client c, struct msgBuffer* msg) {
+    char nomSalon[64];
+    strcpy(nomSalon, arg1);
+        
+    struct msgBuffer response;
+    response.opCode = 3;
+    response.adClient = c.adClient;
+    strcpy(response.username, "Serveur");
+
+    if (creerSalon(nomSalon) == 0) {
+        
+        // ✅ Retirer l’utilisateur d’un éventuel salon existant
+        char* salonActuel = trouverSalonDuClient(c);
+
+        printf("🔍 Salon actuel du client %s : %s\n", c.username, salonActuel ? salonActuel : "Aucun");
+
+        if (salonActuel != NULL) {
+            retirerClientDuSalon(salonActuel, c);
+            printf("✅ Client retiré de %s\n", salonActuel);
+            
+
+            // Notif aux autres
+            int idxOld = salonExiste(salonActuel);
+            if (idxOld != -1) {
+                struct msgBuffer notifLeave;
+                notifLeave.opCode = 3;
+                notifLeave.adClient = c.adClient;
+                strcpy(notifLeave.username, "Serveur");
+                snprintf(notifLeave.msg, sizeof(notifLeave.msg), "📢 %s a quitté le salon \"%s\".", c.username, salonActuel);
+                envoyerMessageAListe(salons[idxOld].clients, &notifLeave, dS, &c);
+            }
+        }
+
+        // ✅ Ajouter au nouveau salon
+        ajouterClientAuSalon(nomSalon, c);
+        afficherinfoSalon(nomSalon);
+
+        // ✅ Envoyer message de succès
+        strcpy(response.msg, "✅ Salon créé et rejoint.");
+        sendMessageToClient(&response, dS, &msg->adClient);
+    } else {
+        strcpy(response.msg, "❌ Erreur : salon déjà existant ou limite atteinte.");
+        sendMessageToClient(&response, dS, &msg->adClient);
+    }
+}
 
 
 void parseCommand(const char* input, Command* cmd) {
@@ -244,13 +436,33 @@ void parseCommand(const char* input, Command* cmd) {
         const char* p = input + 8;
         while (*p == ' ') p++;
         sscanf(p, "%63s %63s", cmd->arg1, cmd->arg2); // arg1 = login, arg2 = mdp
-    }else {
+    } else if (strncmp(input, "@who", 4) == 0) {
+        cmd->type = CMD_WHO;
+    } else if (strncmp(input, "@join", 5) == 0) {
+        cmd->type = CMD_JOIN;
+        const char* p = input + 5;
+        while (*p == ' ') p++;
+        sscanf(p, "%63s", cmd->arg1);
+    }
+    else if (strncmp(input, "@create", 7) == 0) {
+        cmd->type = CMD_CREATE;
+        const char* p = input + 7;
+        while (*p == ' ') p++;
+        sscanf(p, "%63s", cmd->arg1);
+    }
+    else if (strncmp(input, "@info", 5) == 0) {
+        cmd->type = CMD_INFO;
+    }
+    else if (strncmp(input, "@leave", 6) == 0) {
+        cmd->type = CMD_LEAVE;
+    }
+    else {
         cmd->type = CMD_UNKNOWN;
     }
 }
 
 // Fonction centrale
-void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList) {
+void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, struct client c) {
     switch (cmd->type) {
         case CMD_HELP:
             cmd_help(msg, dS);
@@ -276,6 +488,21 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
         case CMD_DISCONNECT:
             cmd_disconnect(msg, dS, cmd, clientList);
             break;
+        case CMD_CREATE:
+            cmd_create(dS, cmd->arg1, c, msg);
+            break;
+        case CMD_WHO:
+            cmd_who(msg, dS, c);
+            break;
+        case CMD_JOIN:
+            cmd_join(dS, cmd->arg1, msg, c);
+            break;
+        case CMD_INFO:
+            cmd_info(dS, c, msg);
+            break;
+        case CMD_LEAVE:
+            cmd_leave(dS, c, msg);
+            break;    
         default:
             // Commande inconnue
             {

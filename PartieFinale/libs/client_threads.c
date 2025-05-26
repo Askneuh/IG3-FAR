@@ -13,22 +13,19 @@
 #include "client_mutex.h"
 #include "variables.h"
 
-// Variable globale pour indiquer si on est en train de saisir
 static bool is_typing = false;
 static pthread_mutex_t typing_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Fonction pour envoyer des messages
 void* send_thread(void* arg) {
     struct ThreadContext* ctx = (struct ThreadContext*) arg;
     struct msgBuffer m;
     strcpy(m.username, ctx->username);
     m.opCode = 1;
-    m.port = htons(ctx->aS.sin_port);  // On convertit en port lisible
+    m.port = htons(ctx->aS.sin_port);
     m.adClient = ctx->aS;
     bool continueEnvoie = true;
 
     while (continueEnvoie) {
-        // Marquer qu'on commence à taper
         pthread_mutex_lock(&typing_mutex);
         is_typing = true;
         pthread_mutex_unlock(&typing_mutex);
@@ -36,13 +33,10 @@ void* send_thread(void* arg) {
         printf("\n✉️ Entrez un message : ");
         fflush(stdout);  // Force l'affichage immédiat de l'invite
         
-        // Utiliser fgets au lieu de scanf pour une meilleure gestion
         if (fgets(m.msg, sizeof(m.msg), stdin) != NULL) {
-            // Supprimer le caractère de nouvelle ligne
             m.msg[strcspn(m.msg, "\n")] = 0;
         }
         
-        // Marquer qu'on a fini de taper
         pthread_mutex_lock(&typing_mutex);
         is_typing = false;
         pthread_mutex_unlock(&typing_mutex);
@@ -72,8 +66,7 @@ void* send_thread(void* arg) {
             pthread_create(&download_thread, NULL, &download_file_wrapper, &argsDownload);
         }
         else if (m.msg[0] == '@') {
-           // Cas 4 : commande autre que upload/download
-           m.opCode = 8; // ou la valeur attendue pour une commande
+           m.opCode = 8; 
            pthread_mutex_lock(&udp_socket_mutex);
            if (sendto(ctx->dS, &m, sizeof(m), 0, (struct sockaddr*)&ctx->aS, sizeof(ctx->aS)) == -1) {
                perror("❌ Erreur sendto");
@@ -94,7 +87,6 @@ void* send_thread(void* arg) {
     return NULL;
 }
 
-// Fonction pour recevoir des messages
 void* recv_thread(void* arg) {
     struct ThreadContext* ctx = (struct ThreadContext*) arg;
     struct msgBuffer m;
@@ -121,7 +113,7 @@ void* recv_thread(void* arg) {
             expected_msg = m;
             msg_received = 1;
             pthread_mutex_unlock(&opcode_mutex);
-            continue; // Ne pas afficher ce message
+            continue; 
         }
         pthread_mutex_unlock(&opcode_mutex);
         
@@ -135,7 +127,6 @@ void* recv_thread(void* arg) {
             printf("\n");
         }
         
-        // Afficher le message reçu
         if (m.opCode == 1) {
             printf("📨 Message reçu de %s du chat commun : %s\n", m.username, m.msg);
         }
@@ -145,14 +136,8 @@ void* recv_thread(void* arg) {
         else if (m.opCode == 7){
             printf("📨 Message reçu de %s provenant de votre salon : %s\n", m.username, m.msg);
         }
-        else if (m.opCode == 3) { //opCode pour la réponse du server concernant les salons
+        else if (m.opCode == 3) { 
             printf("%s : %s\n", m.username ,m.msg);
-        }
-        else if (m.opCode == 10) {
-            printf("\n%s", m.msg);
-            printf("Fermeture de la connexion demandée par le serveur.\n");
-            close(ctx->dS);
-            exit(EXIT_SUCCESS); // Termine le programme immédiatement
         }
         
         // Si l'utilisateur était en train de taper, réafficher l'invite

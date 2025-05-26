@@ -15,7 +15,12 @@ typedef enum {
     CMD_LIST,
     CMD_CONNECT,
     CMD_UNKNOWN,
-    CMD_DISCONNECT
+    CMD_DISCONNECT,
+    CMD_WHO,
+    CMD_JOIN,
+    CMD_INFO,
+    CMD_LEAVE,
+    CMD_CREATE
 } CommandType;
 
 // Structure pour une commande
@@ -26,7 +31,7 @@ typedef struct {
 } Command;
 
 // Prototype de la fonction centrale
-void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList);
+void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** clientList, struct client c);
 
 // Prototype pour parser une commande 
 void parseCommand(const char* input, Command* cmd);

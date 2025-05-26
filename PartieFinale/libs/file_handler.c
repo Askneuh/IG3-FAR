@@ -41,7 +41,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
             perror("❌ Erreur d'envoi de la requête");
             pthread_mutex_unlock(&udp_socket_mutex);
             pthread_mutex_unlock(&file_mutex);
-            printf("Unlock file\n");
             fclose(file);
             return;
         }
@@ -55,12 +54,10 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
             perror("❌ Erreur de création de la socket TCP");
             fclose(file);
             pthread_mutex_unlock(&file_mutex);
-            printf("Unlock file\n");
             return;
         }
         
 
-        // Configuration pour recevoir le port TCP du serveur
         pthread_mutex_lock(&opcode_mutex);
         expected_opcode = 5;  // OpCode pour le message de port TCP
         msg_received = 0;
@@ -83,9 +80,8 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
             return;
         }
         
-        // Récupération du port
         int port_tcp = ntohs(expected_msg.port);
-        expected_opcode = 0;  // Reset pour les futurs messages
+        expected_opcode = 0;  
         msg_received = 0;
         pthread_mutex_unlock(&opcode_mutex);
         
@@ -98,7 +94,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
             close(dSTCP);
             fclose(file);
             pthread_mutex_unlock(&file_mutex);
-            printf("Unlock file\n");
             return;
         }
         printf("Connexion à la socket TCP établie\n");
@@ -114,7 +109,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
                 close(dSTCP);
                 fclose(file);
                 pthread_mutex_unlock(&file_mutex);
-                printf("Unlock file\n");
                 return;
             }
             printf("Envoi de %ld octets au serveur.\n", bytesRead);
@@ -129,7 +123,6 @@ void upload_file(char *filename, char* username, int dS, struct sockaddr_in aS, 
 
 void download_file(char* filename, char* username, int dS, struct sockaddr_in aS, struct sockaddr_in aD) {
     pthread_mutex_lock(&file_mutex);
-    printf("Lock File\n");
     char new_filename[256]; // Assurez-vous que le tableau est assez grand
     snprintf(new_filename, sizeof(new_filename), "new_%s", filename);
     FILE* file = fopen(new_filename, "wb");
@@ -147,7 +140,6 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
 
     // Demande de reception du fichier 
     pthread_mutex_lock(&udp_socket_mutex);
-    printf("Lock UDP\n");
     if (sendto(dS, &m, sizeof(m), 0, (struct sockaddr*)&aS, sizeof(aS)) == -1) {
         perror("❌ Erreur d'envoi de la requête");
         pthread_mutex_unlock(&udp_socket_mutex);
@@ -155,7 +147,6 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         fclose(file);
     }
     pthread_mutex_unlock(&udp_socket_mutex);
-    printf("Unlock UDP\n");
     printf("📤 Requête de reception de fichier envoyée pour '%s'\n", filename);
     // Création de la socket TCP du client
     int dSTCP = socket(PF_INET, SOCK_STREAM, 0);
@@ -163,15 +154,12 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         perror("❌ Erreur de création de la socket TCP");
         fclose(file);
         pthread_mutex_unlock(&file_mutex);
-        printf("Unlock file\n");
         return;
     }
-    printf("Socket TCP créée\n");
-    printf("En attente du port TCP du serveur...\n");
+  
 
-    // Configuration pour recevoir le port TCP du serveur
     pthread_mutex_lock(&opcode_mutex);
-    expected_opcode = 5;  // OpCode pour le message de port TCP
+    expected_opcode = 5;  
     msg_received = 0;
     pthread_mutex_unlock(&opcode_mutex);
         
@@ -191,7 +179,6 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         fclose(file);
     }
         
-    // Récupération du port
     int port_tcp = ntohs(expected_msg.port);
     
     if (port_tcp == 0) {
@@ -202,11 +189,10 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         fclose(file);
     }
     
-    expected_opcode = 0;  // Reset pour les futurs messages
+    expected_opcode = 0;  
     msg_received = 0;
     pthread_mutex_unlock(&opcode_mutex);
         
-    printf("Port TCP reçu : %d\n", htons(port_tcp));
         
     struct sockaddr_in tcpServerAddr = aS;
     tcpServerAddr.sin_port = htons(port_tcp);
@@ -216,7 +202,6 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
         close(dSTCP);
         fclose(file);
         pthread_mutex_unlock(&file_mutex);
-        printf("Unlock file\n");
     }
     printf("Connexion à la socket TCP établie\n");
 
@@ -237,7 +222,7 @@ void download_file(char* filename, char* username, int dS, struct sockaddr_in aS
     fclose(file);
     close(dSTCP);
     pthread_mutex_unlock(&file_mutex);
-    printf("Fichier reçu (%ld octets).\n", totalBytesReceived);
+    printf("✅ Fichier reçu (%ld octets).\n", totalBytesReceived);
 }
 
 

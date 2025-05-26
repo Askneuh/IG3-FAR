@@ -1,10 +1,10 @@
 0 :
 1 : Envoyer un message à tout le monde
 2 : Demande de transfert de fichier client -> server (upload)
-3 : 
+3 : Retour du serveur au client
 4 :
 5 : pour le message de port TCP
 6 : Demande de transfert de fichier client -> server (download)
 7 :
-8 :
-9+: Commandes
+8 : Commandes
+9+: 

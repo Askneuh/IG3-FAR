@@ -5,7 +5,6 @@
 #include <sys/socket.h>
 #include "common.h"
 #include "client_list.h"
-#include "users.h"
 #include "command.h"
 #include "message.h"
 
