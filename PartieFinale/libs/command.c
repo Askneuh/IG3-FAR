@@ -14,6 +14,7 @@ static void cmd_help(struct msgBuffer* msg, int dS) {
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
+    response.opCode = 3;
     if (f) {
         fread(response.msg, 1, MAX_MSG_LEN-1, f);
         fclose(f);
@@ -30,6 +31,7 @@ static void cmd_ping(struct msgBuffer* msg, int dS) {
     strcpy(response.msg, "pong");
     response.adClient = msg->adClient;
     response.port = msg->port;
+    response.opCode = 3;
     sendMessageToClient(&response, dS, &msg->adClient);
 }
 static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode** clientList) {
@@ -39,6 +41,7 @@ static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode*
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
+    response.opCode = 3;
     
     if (fm) {
         char* content = read_all(fm);
@@ -123,6 +126,7 @@ static void cmd_disconnect(struct msgBuffer* msg, int dS, Command* cmd, ClientNo
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
+    response.opCode = 3;
 
     bool client_removed = removeClient(clientList, msg->username);
 
@@ -145,6 +149,7 @@ static void cmd_credits(struct msgBuffer* msg, int dS) {
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
+    response.opCode = 3;
     if (f) {
         fread(response.msg, 1, MAX_MSG_LEN-1, f);
         fclose(f);
@@ -179,6 +184,7 @@ static void cmd_msg(struct msgBuffer* msg, int dS, ClientNode* clientList, Comma
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
+    response.opCode = 3;
     ClientNode* dest = findClientByName(clientList, cmd->arg1);
     if (dest) {
         snprintf(response.msg, MAX_MSG_LEN, "[privé de %s]: %s", msg->username, cmd->arg2);
@@ -195,7 +201,7 @@ static void cmd_list(struct msgBuffer* msg, int dS, ClientNode* clientList) {
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
-
+    response.opCode = 3;
     char liste[MAX_MSG_LEN] = "Utilisateurs connectés :";
     ClientNode* cur = clientList;
     while (cur != NULL) {

@@ -9,3 +9,5 @@ user3 c 0
 
 user4 d 0
 
+who d 0
+

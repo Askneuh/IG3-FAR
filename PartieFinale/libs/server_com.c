@@ -47,7 +47,7 @@ ClientNode* ReceiveMessage(int dS, struct msgBuffer* msg, ClientNode* clientList
             int idx = salonExiste(nomSalon);
             if (idx != -1) {
                 strcpy(msg->username, c.username);
-                msg->opCode = 7;
+                msg->opCode = 3;
                 envoyerMessageAListe(salons[idx].clients, msg, dS, &c);
             }
         }
