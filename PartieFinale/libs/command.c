@@ -8,7 +8,6 @@
 #include "salon.h"
 #include <signal.h>
 #include <pthread.h>
-#include "client_mutex.h"
 
 static void cmd_help(struct msgBuffer* msg, int dS) {
     FileManager* fm = open_file("help.txt", "r"); 
@@ -434,13 +433,11 @@ static void cmd_channels(int dS, struct client c) {
     }
 
     // Sinon on envoie un salon par message
-    pthread_mutex_lock(&udp_socket_mutex);
     for (int i = 0; i < nb_salons; i++) {
         snprintf(rsp.msg, sizeof(rsp.msg),
                 "Salon %d: %s", i+1, salons[i].nom);
         sendMessageToOneClient(c, &rsp, dS);
     }
-    pthread_mutex_unlock(&udp_socket_mutex);
 }
 
 

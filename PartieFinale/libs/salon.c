@@ -182,8 +182,9 @@ void chargerSalons() {
                 loaded++;
             }
         }
+    
+        fclose(f);
+        printf("✅ Chargement terminé : %d salon(s) chargé(s) avec leurs membres.\n", loaded);
     }
-    fclose(f);
-    printf("✅ Chargement terminé : %d salon(s) chargé(s) avec leurs membres.\n", loaded);
 }
 
