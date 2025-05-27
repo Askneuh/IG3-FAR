@@ -2,9 +2,6 @@
 
 FileManager* open_file(const char *filename, const char *mode) {
     FileManager *fm = (FileManager*)malloc(sizeof(FileManager));
-    if (fm == NULL) {
-        return NULL;
-    }
 
     fm->file = fopen(filename, mode);
     if (fm->file == NULL) {
@@ -31,10 +28,7 @@ void close_file(FileManager *fm) {
     }
 }
 
-char* read_line(FileManager *fm) {
-    if (fm == NULL || fm->file == NULL) {
-        return NULL;
-    }
+char* read_line(FileManager *fm) {       
 
     char *line = NULL;
     size_t len = 0;
@@ -43,24 +37,16 @@ char* read_line(FileManager *fm) {
     read = getline(&line, &len, fm->file);
     if (read == -1) {
         free(line);
-        return NULL;
     }
 
     return line;
 }
 
 void write_line(FileManager *fm, const char *line) {
-    if (fm == NULL || fm->file == NULL || line == NULL) {
-        return;
-    }
-
     fprintf(fm->file, "%s\n", line);
 }
 
 char* read_all(FileManager *fm) {
-    if (fm == NULL || fm->file == NULL) {
-        return NULL;
-    }
 
     fseek(fm->file, 0, SEEK_END);
     long length = ftell(fm->file);
@@ -68,7 +54,7 @@ char* read_all(FileManager *fm) {
 
     char *buffer = (char*)malloc(length + 1);
     if (buffer == NULL) {
-        return NULL;
+        return "";
     }
 
     fread(buffer, 1, length, fm->file);
@@ -79,9 +65,5 @@ char* read_all(FileManager *fm) {
 
 // Fonction pour écrire tout le contenu dans un fichier
 void write_all(FileManager *fm, const char *content) {
-    if (fm == NULL || fm->file == NULL || content == NULL) {
-        return;
-    }
-
     fputs(content, fm->file);
 }

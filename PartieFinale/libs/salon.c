@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #define SAVE_FILE "save_salons.txt"
 
@@ -31,8 +32,6 @@ int creerSalon(const char *nom) {
     salons[nb_salons].clients = NULL;
     nb_salons++;
     printf("✅ Salon \"%s\" créé (total : %d salon(s)).\n", nom, nb_salons);
-
-    ;
     return 0;
 }
 
@@ -56,8 +55,6 @@ int ajouterClientAuSalon(const char *nom, struct client c) {
 
     salons[idx].clients = addClient(salons[idx].clients, c);
     printf("✅ Client \"%s\" ajouté au salon \"%s\".\n", c.username, nom);
-
-    ;
     return 0;
 }
 
@@ -168,42 +165,25 @@ void sauvegarderSalons() {
 void chargerSalons() {
     printf("📂 Chargement des salons et de leurs membres depuis \"%s\"…\n", SAVE_FILE);
     FILE *f = fopen(SAVE_FILE, "r");
-    if (!f) {
-        printf("⚠️  Aucun fichier \"%s\" trouvé, démarrage à vide.\n", SAVE_FILE);
-        return;
-    }
+    if (f) {
+        char line[1024];
+        int loaded = 0;
+        while (fgets(line, sizeof(line), f)) {
+            line[strcspn(line, "\r\n")] = '\0';
+            if (line[0] == '\0') continue;
 
-    char line[1024];
-    int loaded = 0;
-    while (fgets(line, sizeof(line), f)) {
-        line[strcspn(line, "\r\n")] = '\0';
-        if (line[0] == '\0') continue;
+            // Découpe salon / membres
+            char *nomSalon = strtok(line, ";");
+            char *liste = strtok(NULL, ";");  // peut être NULL si pas de membres
 
-        // Découpe salon / membres
-        char *nomSalon = strtok(line, ";");
-        char *liste = strtok(NULL, ";");  // peut être NULL si pas de membres
-
-        // Crée (ou ignore si existe déjà)
-        if (creerSalon(nomSalon) == 0) {
-            printf("   + Salon \"%s\" chargé.\n", nomSalon);
-            loaded++;
-        }
-
-        // Parse la liste des pseudos
-        if (liste) {
-            char *pseudo = strtok(liste, ",");
-            while (pseudo) {
-                // On crée un client « factice » juste pour stocker le pseudo
-                struct client fake = { .username = "" };
-                strncpy(fake.username, pseudo, sizeof(fake.username)-1);
-                fake.username[sizeof(fake.username)-1] = '\0';
-
-                // On ajoute en mémoire
-                ajouterClientAuSalon(nomSalon, fake);
-                pseudo = strtok(NULL, ",");
+            // Crée (ou ignore si existe déjà)
+            if (creerSalon(nomSalon) == 0) {
+                printf("   + Salon \"%s\" chargé.\n", nomSalon);
+                loaded++;
             }
         }
     }
     fclose(f);
     printf("✅ Chargement terminé : %d salon(s) chargé(s) avec leurs membres.\n", loaded);
 }
+

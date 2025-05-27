@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
 
     struct sockaddr_in aD;
     aD.sin_family = AF_INET;
-    aD.sin_addr.s_addr = inet_addr(argv[1]);
+    aD.sin_addr.s_addr = INADDR_ANY;
     aD.sin_port = htons((short)atoi(argv[2]));
 
     if (bind(dS, (struct sockaddr*)&aD, sizeof(aD)) < 0) {
@@ -84,20 +84,9 @@ int main(int argc, char *argv[]) {
     // Adresse du serveur
     struct sockaddr_in aS;
     aS.sin_family = AF_INET;
-    aS.sin_addr.s_addr = INADDR_ANY;
+    aS.sin_addr.s_addr = INADDR_ANY; // mettre l'adresse inet du serv (ifconfig)
     aS.sin_port = htons((short)12345);
-    /*
-    // Préparer les infos pour la déconnexion
-    DisconnectInfo info;
-    info.dS = dS;
-    info.aS = aS;
-    info.aD = aD;
-    memset(info.username, 0, MAX_USERNAME_LEN);
-    disconnect_info = &info;
 
-    // Configurer le gestionnaire de signal APRÈS avoir initialisé disconnect_info
-    signal(SIGINT, handle_disconnect);
-    */
 
     struct ThreadContext ctx;
     ctx.dS = dS;

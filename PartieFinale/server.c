@@ -46,10 +46,19 @@ int main(int argc, char* argv[]) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
+
+    int opt = 1;
+    if (setsockopt(dS, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR");
+        close(dS);
+        exit(EXIT_FAILURE);
+    }
+
     struct sockaddr_in adServeur;
     adServeur.sin_family = AF_INET; 
-    adServeur.sin_addr.s_addr = INADDR_ANY; 
+    adServeur.sin_addr.s_addr = INADDR_ANY;
     adServeur.sin_port = htons((short)12345);
+
     if (bind(dS, (struct sockaddr*)&adServeur, sizeof(adServeur)) == -1) { 
         perror("bind");
         close(dS);

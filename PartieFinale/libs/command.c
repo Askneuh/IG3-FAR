@@ -7,18 +7,23 @@
 #include "file_manager.h"
 #include "salon.h"
 #include <signal.h>
+#include <pthread.h>
+#include "client_mutex.h"
 
 static void cmd_help(struct msgBuffer* msg, int dS) {
-    FILE* f = fopen("help.txt", "r");
+    FileManager* fm = open_file("help.txt", "r"); 
+    //FILE* f = fopen("help.txt", "r");
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
     response.opCode = 3;
-    if (f) {
-        fread(response.msg, 1, MAX_MSG_LEN-1, f);
-        fclose(f);
+    if (fm) {
+        strcpy(response.msg, read_all(fm));
+        //fread(response.msg, 1, MAX_MSG_LEN-1, f);
+        close_file(fm);
+        //fclose(f);
     } else {
         strcpy(response.msg, "Aide indisponible.");
     }
@@ -35,7 +40,7 @@ static void cmd_ping(struct msgBuffer* msg, int dS) {
     response.opCode = 3;
     sendMessageToClient(&response, dS, &msg->adClient);
 }
-static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode** clientList) {
+static void cmd_connect(struct msgBuffer* msg, int dS, Command* cmd, ClientNode** clientList, struct client c) {
     FileManager* fm = open_file("users.txt", "a+"); // a+ pour lire ET écrire, créer si n'existe pas
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
@@ -142,16 +147,16 @@ static void cmd_disconnect(struct msgBuffer* msg, int dS, Command* cmd, ClientNo
 
 
 static void cmd_credits(struct msgBuffer* msg, int dS) {
-    FILE* f = fopen("credits.txt", "r");
+    FileManager* fm = open_file("credits.txt", "r");
     struct msgBuffer response;
     memset(&response, 0, sizeof(response));
     strcpy(response.username, "server");
     response.adClient = msg->adClient;
     response.port = msg->port;
     response.opCode = 3;
-    if (f) {
-        fread(response.msg, 1, MAX_MSG_LEN-1, f);
-        fclose(f);
+    if (fm) {
+        strcpy(response.msg, read_all(fm));
+        close_file(fm);
     } else {
         strcpy(response.msg, "Crédits indisponibles.");
     }
@@ -308,12 +313,10 @@ static void cmd_info(int dS, struct client c, struct msgBuffer* msg) {
     strcpy(response.username, "Serveur");
     if (idx == -1) {
         strcpy(response.msg, "❌ Salon introuvable.");
-    } else {sendMessageToClient(&response, dS, &msg->adClient);
-
+    } else {
         Salon s = salons[idx];
         char info[512] = "";
-        sprintf(info, "📂 Salon \"%s\" (%d membres):\n", s.nom, countClients(s.clients)
-    );
+        sprintf(info, "📂 Salon \"%s\" (%d membres):\n", s.nom, countClients(s.clients));
         ClientNode* current = salons[idx].clients;
         while (current != NULL) {
             strcat(info, " - ");
@@ -340,24 +343,35 @@ static void cmd_leave(int dS, struct client c, struct msgBuffer* msg) {
         strcpy(response.msg, "❌ Tu n'es dans aucun salon.");
         sendMessageToClient(&response, dS, &msg->adClient);
     } else {
-        // ✅ Retirer le client
+        char salonName[64];
+        strcpy(salonName, nomSalon);
+        int idx = salonExiste(nomSalon);
+
+
+        struct msgBuffer notif;
+        notif.opCode = 3;
+        notif.adClient = c.adClient;
+        strcpy(notif.username, "Serveur");
+        snprintf(notif.msg, sizeof(notif.msg), "📢 %s a quitté le salon \"%s\".", c.username, salonName);
+
+
+        if (idx != -1) {
+            ClientNode* current = salons[idx].clients;
+            while (current != NULL) {
+                if (strcmp(current->data.username, c.username) != 0) { // Exclure le client qui part
+                    sendMessageToClient(&notif, dS, &current->data.adClient);
+                }
+                current = current->next;
+            }
+        }
+
+
         retirerClientDuSalon(nomSalon, c);
 
         // ✅ Message au client
         sprintf(response.msg, "✅ Tu as quitté le salon \"%s\".", nomSalon);
         sendMessageToClient(&response, dS, &msg->adClient);
-
-        // ✅ Notifier les autres
-        struct msgBuffer notif;
-        notif.opCode = 3;
-        notif.adClient = c.adClient;
-        strcpy(notif.username, "Serveur");
-        snprintf(notif.msg, sizeof(notif.msg), "📢 %s a quitté le salon \"%s\".", c.username, nomSalon);
-
-        int idx = salonExiste(nomSalon);
-        if (idx != -1) {
-            envoyerMessageAListe(salons[idx].clients, &notif, dS, &c);
-        }
+        
     }
 }
 
@@ -407,6 +421,28 @@ static void cmd_create(int dS, char* arg1, struct client c, struct msgBuffer* ms
     }
 }
 
+static void cmd_channels(int dS, struct client c) {
+    struct msgBuffer rsp;
+    rsp.opCode   = 3;             // réponse serveur
+    rsp.adClient = c.adClient;    // destinataire
+    strcpy(rsp.username, "Serveur");
+
+    // Si pas de salon, on prévient
+    if (nb_salons == 0) {
+        strcpy(rsp.msg, "Aucun salon disponible.");
+        sendMessageToOneClient(c, &rsp, dS);
+    }
+
+    // Sinon on envoie un salon par message
+    pthread_mutex_lock(&udp_socket_mutex);
+    for (int i = 0; i < nb_salons; i++) {
+        snprintf(rsp.msg, sizeof(rsp.msg),
+                "Salon %d: %s", i+1, salons[i].nom);
+        sendMessageToOneClient(c, &rsp, dS);
+    }
+    pthread_mutex_unlock(&udp_socket_mutex);
+}
+
 
 void parseCommand(const char* input, Command* cmd) {
     memset(cmd, 0, sizeof(Command));
@@ -453,6 +489,9 @@ void parseCommand(const char* input, Command* cmd) {
     else if (strncmp(input, "@leave", 6) == 0) {
         cmd->type = CMD_LEAVE;
     }
+    else if (strncmp(input, "@channels", 9) == 0) {
+        cmd->type = CMD_CHANNELS;
+    }
     else {
         cmd->type = CMD_UNKNOWN;
     }
@@ -480,7 +519,7 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
             cmd_list(msg, dS, *clientList);
             break;
         case CMD_CONNECT:
-            cmd_connect(msg, dS, cmd, clientList);
+            cmd_connect(msg, dS, cmd, clientList, c);
             break;
         case CMD_DISCONNECT:
             cmd_disconnect(msg, dS, cmd, clientList);
@@ -500,6 +539,9 @@ void traiterCommande(Command* cmd, struct msgBuffer* msg, int dS, ClientNode** c
         case CMD_LEAVE:
             cmd_leave(dS, c, msg);
             break;    
+        case CMD_CHANNELS:
+            cmd_channels(dS, c);
+            break;
         default:
             // Commande inconnue
             {

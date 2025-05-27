@@ -19,7 +19,8 @@ typedef enum {
     CMD_JOIN,
     CMD_INFO,
     CMD_LEAVE,
-    CMD_CREATE
+    CMD_CREATE,
+    CMD_CHANNELS
 } CommandType;
 
 typedef struct {

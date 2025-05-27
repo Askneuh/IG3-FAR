@@ -84,7 +84,6 @@ void* send_thread(void* arg) {
            pthread_mutex_unlock(&udp_socket_mutex);
        }
     }
-    return NULL;
 }
 
 void* recv_thread(void* arg) {

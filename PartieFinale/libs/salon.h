@@ -5,6 +5,7 @@
 #define MAX_SALONS 20
 
 #include "client_list.h"
+#include <pthread.h>
 
 typedef struct {
     char nom[MAX_NAME];
@@ -13,6 +14,7 @@ typedef struct {
 
 extern Salon salons[MAX_SALONS];
 extern int nb_salons;
+
 
 int creerSalon(const char *nom);
 int ajouterClientAuSalon(const char *nom, struct client c);
@@ -25,6 +27,7 @@ void chargerSalons();
 void sauvegarderSalons();
 int pseudoDansSalon(const char *nom, const char *pseudo);
 void restaurerClientDansSesSalons(struct client c);
+int supprimerClientFactice(const char *nomSalon, const char *username);
 
 #endif
 
